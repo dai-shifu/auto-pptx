@@ -9,6 +9,8 @@ import sys
 import tempfile
 import time
 import tomllib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from ctypes import wintypes
 from pathlib import Path
 
@@ -53,7 +55,27 @@ def executable_versions(executable: Path) -> tuple[tuple[int, ...], tuple[int, .
     return parts(fields[2], fields[3]), parts(fields[4], fields[5])
 
 
-def check_windows(directory: Path) -> None:
+@contextmanager
+def verification_directory(runner_temp: Path | None = None) -> Iterator[Path]:
+    """Keep local cleanup strict; allow locked files on a disposable CI runner."""
+    temporary = tempfile.TemporaryDirectory(prefix="auto-pptx-check-", dir=runner_temp)
+    try:
+        yield Path(temporary.name)
+    finally:
+        failure = sys.exc_info()[1]
+        try:
+            temporary.cleanup()
+        except OSError as error:
+            message = f"Could not clean verification directory {temporary.name}: {error}"
+            if failure is not None:
+                failure.add_note(message)
+            elif runner_temp is not None and isinstance(error, PermissionError):
+                print(f"::warning::{message}; left for runner cleanup", file=sys.stderr)
+            else:
+                raise
+
+
+def check_windows(directory: Path, *, runner_temp: Path | None = None) -> None:
     if sys.platform != "win32":
         raise RuntimeError("Executable verification must run on Windows")
     packages = list(directory.glob("*.exe"))
@@ -69,11 +91,21 @@ def check_windows(directory: Path) -> None:
     user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
     user32.FindWindowW.restype = wintypes.HWND
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.GetWindowThreadProcessId.argtypes = [
+        wintypes.HWND, ctypes.POINTER(wintypes.DWORD)
+    ]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
     title = "Auto PPTX Generator"
     if user32.FindWindowW(None, title):
         raise RuntimeError("Close existing Auto PPTX Generator windows before verification")
-    with tempfile.TemporaryDirectory(prefix="auto-pptx-check-") as temporary:
-        unpacked = Path(temporary)
+    with verification_directory(runner_temp) as unpacked:
         executable = unpacked / package.name
         shutil.copyfile(package, executable)
         if executable_versions(executable) != (expected_version, expected_version):
@@ -85,6 +117,7 @@ def check_windows(directory: Path) -> None:
         if config.exists():
             raise ValueError("Startup check requires a clean directory")
         process = subprocess.Popen([str(executable)], cwd=unpacked)
+        window_process = None
         try:
             deadline = time.monotonic() + 60
             while time.monotonic() < deadline:
@@ -94,6 +127,13 @@ def check_windows(directory: Path) -> None:
                     )
                 window = user32.FindWindowW(None, title)
                 if window and user32.IsWindowVisible(window) and config.is_file():
+                    pid = wintypes.DWORD()
+                    if not user32.GetWindowThreadProcessId(window, ctypes.byref(pid)):
+                        raise ctypes.WinError(ctypes.get_last_error())
+                    # Keep the GUI child's handle before taskkill can remove its PID.
+                    window_process = kernel32.OpenProcess(0x00100000, False, pid.value)
+                    if not window_process:
+                        raise ctypes.WinError(ctypes.get_last_error())
                     break
                 time.sleep(0.5)
             else:
@@ -103,12 +143,22 @@ def check_windows(directory: Path) -> None:
             if created.get("header_row") != 1 or not created.get("template_column"):
                 raise ValueError("First-run configuration is invalid")
         finally:
-            # onefile launches a child; kill the whole tree without shell quoting.
-            if process.poll() is None:
-                subprocess.run(
-                    ["taskkill", "/PID", str(process.pid), "/T", "/F"], check=True
-                )
-            process.wait(timeout=15)
+            try:
+                # onefile launches a child; kill and wait for both processes.
+                if process.poll() is None:
+                    subprocess.run(
+                        ["taskkill", "/PID", str(process.pid), "/T", "/F"], check=True
+                    )
+                process.wait(timeout=15)
+                if window_process:
+                    result = kernel32.WaitForSingleObject(window_process, 15000)
+                    if result == 0xFFFFFFFF:
+                        raise ctypes.WinError(ctypes.get_last_error())
+                    if result != 0:
+                        raise RuntimeError("GUI process did not exit within 15 seconds")
+            finally:
+                if window_process:
+                    kernel32.CloseHandle(window_process)
     print("Executable, versions, visible startup and first-run config passed; "
           "manual generation check required")
 
@@ -116,4 +166,9 @@ def check_windows(directory: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
-    check_windows(parser.parse_args().directory)
+    parser.add_argument(
+        "--runner-temp", type=Path,
+        help="Use a disposable CI directory; warn if verified files remain locked",
+    )
+    args = parser.parse_args()
+    check_windows(args.directory, runner_temp=args.runner_temp)

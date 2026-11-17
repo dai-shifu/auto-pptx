@@ -54,7 +54,7 @@ jobs:
         run: .venv/Scripts/python.exe -m scripts.release package --trial "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       - name: Check standalone executable and first-run config
         run: |
-          .venv/Scripts/python.exe -m scripts.check_windows dist/windows-release
+          .venv/Scripts/python.exe -m scripts.check_windows dist/windows-release --runner-temp "$RUNNER_TEMP"
       - name: Artifact name
         id: names
         run: echo "artifact=windows-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
