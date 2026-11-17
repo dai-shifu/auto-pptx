@@ -1,0 +1,45 @@
+{
+  "python": "3.11.15",
+  "tk": "9.0.3",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+  "excel_rows": 300,
+  "excel_columns": 41,
+  "excel_size_bytes": 129416,
+  "font_for_screenshots": "{'family': 'fixed', 'size': 9, 'weight': 'normal', 'slant': 'roman', 'underline': 0, 'overstrike': 0}",
+  "font_limitation": "Tk9 Xvfb exposes only fixed, bitstream charter, courier 10 pitch. Screenshot labels and sample display data use English; timed workbook content was Chinese.",
+  "read_sheet_rows_ms": 468.26,
+  "full_update_sheets_ms": 2118.24,
+  "select_all_ms": 48.44,
+  "deselect_all_ms": 4.93,
+  "scroll_to_last_ms": 6.02,
+  "tree_rebuild_ms": 17.07,
+  "status_after_load": "已选择 0 行",
+  "default-1400x850": {
+    "preview_height": 482,
+    "mapping_height": 206,
+    "data_column_widths": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "tree_scrollbar_mapped": true,
+    "generate_button_mapped": true
+  },
+  "minimum-1000x600": {
+    "preview_height": 307,
+    "mapping_height": 131,
+    "data_column_widths": [
+      154,
+      154,
+      154,
+      154,
+      154,
+      153
+    ],
+    "tree_scrollbar_mapped": true,
+    "generate_button_mapped": true
+  }
+}

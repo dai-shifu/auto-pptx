@@ -1,0 +1,33 @@
+# Build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+__pycache__
+dist
+
+# Generated output
+output_*.pptx
+
+# Python bytecode
+*/__pycache__
+*.pyc
+*.pyo
+
+# Local Python environments and test caches
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Tool-local settings
+.local/
+/.codex/
+/.claude/
+/.agents/
+/config.toml
+.codegraph/
+.env
+.env.*
+!.env.example

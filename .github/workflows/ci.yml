@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      UV_PYTHON_DOWNLOADS: never
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth
+          python -m pip install uv==0.11.17
+          uv sync --locked --group dev --python 3.12
+      - name: Test with a real display
+        run: |
+          xvfb-run -a sh -e -c '.venv/bin/python -m scripts.check_display; .venv/bin/python -m pytest -q'

@@ -1,0 +1,19 @@
+[project]
+name = "auto-pptx"
+version = "0.1.0"
+description = "Excel → PPT 批量生成工具"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1",
+    "python-pptx>=0.6.23",
+]
+
+[project.scripts]
+
+[dependency-groups]
+build = ["nuitka", "patchelf; sys_platform == 'linux'", "zstandard"]
+dev = ["pytest"]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
