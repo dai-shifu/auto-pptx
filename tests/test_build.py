@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 import build
+from scripts import check_windows_build
 
 
 @pytest.mark.parametrize("platform", ["win32", "linux"])
@@ -24,7 +25,7 @@ def test_build_reports_output_and_isolates_windows_options(tmp_path, monkeypatch
         ))]
         if platform == "win32":
             assert windows_options == [
-                "--include-windows-runtime-dlls=yes", "--windows-console-mode=disable",
+                "--include-windows-runtime-dlls=auto", "--windows-console-mode=disable",
                 "--file-version=1.2.3.0",
             ]
         else:
@@ -41,6 +42,32 @@ def test_build_reports_output_and_isolates_windows_options(tmp_path, monkeypatch
     assert "耗时:" in output
     assert "单文件大小: 15 字节" in output
     assert "编译报告:" in output
+
+
+@pytest.mark.parametrize("runtime_state", ["found", "empty", "missing"])
+def test_windows_build_runtime_report_does_not_block(tmp_path, monkeypatch, capsys, runtime_state):
+    runtime = tmp_path / "redist"
+    runtime.mkdir()
+    if runtime_state == "found":
+        (runtime / "vcruntime140.dll").touch()
+    monkeypatch.setattr(check_windows_build.sys, "platform", "win32")
+    modules = {
+        "nuitka.freezer.DllDependenciesWin32": SimpleNamespace(
+            getMSVCRedistPath=lambda logger: None if runtime_state == "missing" else str(runtime)
+        ),
+        "nuitka.Tracing": SimpleNamespace(inclusion_logger=object()),
+        "nuitka.Version": SimpleNamespace(getNuitkaVersion=lambda: "4.1.3"),
+    }
+    for module, stub in modules.items():
+        monkeypatch.setitem(check_windows_build.sys.modules, module, stub)
+
+    check_windows_build.main()
+    output = capsys.readouterr()
+    if runtime_state == "found":
+        assert f"MSVC redistributable runtime: {runtime}" in output.out
+        assert not output.err
+    else:
+        assert "Warning: Nuitka cannot locate redistributable runtime DLLs" in output.err
 
 
 def test_compiler_failure_preserves_exit_status(tmp_path, monkeypatch, capsys):

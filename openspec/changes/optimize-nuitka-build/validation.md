@@ -36,14 +36,14 @@
 
 通过 WSL 调用宿主 Git Bash，复用已有 Python 3.12.13 AMD64 环境；没有改动宿主项目源码。
 
-- Nuitka 自身运行库检测返回 None；严格包含运行库时实际退出码为 1，符合新的失败约束。
+- Nuitka 自身运行库检测返回 None；当时使用 `yes` 模式，实际退出码为 1。
 - 当前完整测试：161 passed、3 failed、2 skipped。失败位于 test_gui_tooltip.py 的长文本滚动、真实指针跨窗口移动、短文本高度测试。
 - 从原始 HEAD 导出的临时副本复核 tooltip 测试：7 passed、2 failed、1 skipped。长文本滚动和短文本高度失败同样存在；指针测试在此轮通过，未稳定复现。跳过信息包含 Tk 初始化找不到可用 tk.tcl。
 - 不修改无关 GUI 逻辑，不将这些结果表述为 Windows 全部测试通过。
 
 ## 待验收
 
-- 准备可分发运行库后，实际构建最终 Windows exe，检查运行库包含和编译报告。
+- 由 Windows CI 构建最终 exe，检查运行库包含情况和编译报告。
 - 在相同 Windows 环境比较冷构建、热构建、最终 exe 体积。
 - 在干净 Windows 机器完成单 exe 首次启动、配置、Excel 读取及含图片和图表模板的生成验收。
 - 托管 Windows CI 实际验证缓存恢复、保存和报告 artifact 上传；本地配置检查不等于远程 workflow 已运行。
@@ -62,7 +62,7 @@
 - 新增运行库预检脚本及合成成品检查工具。后者的八个源码测试覆盖正常输出及 exe、配置、映射、表格、页数、图表、嵌入工作簿关系损坏；这些测试不代表最终 Windows exe 已验收。
 - workflow YAML 解析及 Windows 前置依赖检查通过；OpenSpec 全部严格校验 26 passed。
 - 本机运行库预检仍失败，未生成最终 Windows exe，未取得 Windows 冷/热性能或干净机器验收数据。
-- 开发者本机不要求安装 VS/Build Tools。后续 Windows 构建仅使用 CI，本机预检失败不触发工具链下载或安装。
+- 当时计划由 Windows CI 构建，本机不安装 VS/Build Tools。此后本地试包和正式构建均改用 `auto`。
 - 新 workflow 尚未推送或远程运行；缓存保存、恢复和成品报告仍需托管运行证据。
 
 ## 2026-11-18 发布门禁复核
@@ -70,3 +70,10 @@
 - `actionlint` 1.7.12 检查两个工作流均通过。在临时副本恢复 job 级 `runner.temp` 后，检查按预期失败。托管 CI 尚未执行此检查。
 - Linux Xvfb 完整源码测试 177 passed、无跳过。Windows 宿主首次全量运行 176 passed、1 failed，真实指针用例在进入提示框前未定位到源 Treeview。隔离复跑该用例三次均通过，随后全量复跑 177 passed、无跳过。首轮失败原因未确认，未修改测试或放宽断言。
 - Windows 宿主使用 Nuitka 4.1.3 运行预检，仍找不到可分发运行库，按发布流程停止，未编译、未生成 exe。托管 Windows 构建和同一发布包的干净 Windows 生成验收仍待完成。
+
+## 2026-11-18 运行库自动包含验证
+
+- Windows 本机使用 Python 3.12.13、Nuitka 4.1.3 和 GCC 15.2.0。预检找不到可分发运行库时警告并退出 0；`uv run --offline --locked --group build build.py` 同样警告并成功生成 `dist/auto-pptx.exe`（19,417,600 字节）。报告仍记录通过普通依赖扫描包含的 `vcruntime140.dll` 和 `vcruntime140_1.dll`。
+- exe SHA-256：`0cad98cd0538e0227686947f182d4ddeca439be2fcaaa9240c9745ce7fc7ae1f`。用独立副本通过 Windows 本机的版本、可见窗口和首次配置检查。未执行成品生成、干净机器或托管 CI 验收。
+- Linux Xvfb 全量测试 175 passed。Windows 两次全量测试均为 174 passed、1 failed；失败的是历史上出现过的真实鼠标指针定位用例。该用例与打包相关测试单独复跑时 7 passed。
+- `actionlint`、OpenSpec 严格校验（27 项）和差异空白检查通过。

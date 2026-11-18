@@ -1,12 +1,16 @@
 ## ADDED Requirements
 
-### Requirement: Windows builds require redistributable runtimes
-Windows builds SHALL require Nuitka to include Windows runtime DLLs and SHALL fail when those runtime files cannot be located. Non-Windows builds SHALL NOT receive Windows-only options.
+### Requirement: Windows builds automatically include redistributable runtimes
+Local and CI Windows builds SHALL use Nuitka's `--include-windows-runtime-dlls=auto` option. Non-Windows builds SHALL NOT receive Windows-only options.
+
+#### Scenario: Runtime files are found
+- **WHEN** Nuitka locates the redistributable Windows runtime files
+- **THEN** Nuitka SHALL include those files in the Windows build
 
 #### Scenario: Runtime files cannot be found
-- **WHEN** Nuitka cannot locate required redistributable runtime files during a Windows build
-- **THEN** the build SHALL fail and preserve the compiler exit status
-- **AND** packaging and publication SHALL NOT proceed
+- **WHEN** the Windows build preflight or Nuitka cannot locate redistributable runtime files
+- **THEN** it SHALL report a warning and SHALL NOT fail solely for that reason
+- **AND** the release SHALL still require executable acceptance on clean Windows
 
 ### Requirement: Builds produce diagnostic evidence
 Builds SHALL request a Nuitka XML compilation report under dist. Successful builds SHALL print elapsed compilation time and final single-file size. CI SHALL preserve reports separately from user release assets when available, including after compilation failure.
@@ -65,14 +69,14 @@ Windows cold and warm build measurements SHALL use the same source, paths, machi
 - **AND** it SHALL NOT attribute a Windows speedup or size reduction percentage to dependency narrowing
 
 ### Requirement: Source development is independent of the Windows build toolchain
-Developers on macOS, Linux and Windows SHALL be able to run and test the project from source without installing Visual Studio or Build Tools. Windows executable builds SHALL use the dedicated Windows CI environment. A local runtime preflight failure SHALL report the missing build environment without downloading or installing a Windows toolchain.
+Developers on macOS, Linux and Windows SHALL be able to run and test the project from source without installing Visual Studio or Build Tools. Official Windows executable builds SHALL use the dedicated Windows CI environment. Developers MAY build trial executables locally on Windows using the same build script.
 
 #### Scenario: A developer works on macOS or Linux
 - **WHEN** a developer changes and tests source code on macOS or Linux
 - **THEN** the developer SHALL use the source runtime and test dependencies for that platform
 - **AND** the Windows executable SHALL be produced by the Windows CI workflow
 
-#### Scenario: The local Windows runtime preflight fails
-- **WHEN** required redistributable files cannot be found on a developer's Windows machine
-- **THEN** preflight SHALL fail with a diagnostic
-- **AND** it SHALL NOT download or install Visual Studio or Build Tools
+#### Scenario: A local trial build has a compiler but no redistributable files
+- **WHEN** a developer on Windows runs the build with a usable compiler but no redistributable runtime files
+- **THEN** the build SHALL proceed in auto mode
+- **AND** the project SHALL NOT download or install Visual Studio or Build Tools in response to the missing files

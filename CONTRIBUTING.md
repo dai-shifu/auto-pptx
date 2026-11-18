@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-macOS、Linux 和 Windows 开发者均直接从源码运行和测试，需要 Python 3.11+、uv 和可用的 tkinter。CI 和 Windows 发布构建使用 Python 3.12。Windows 命令在 Git Bash 中执行。Windows exe 由 Windows CI 统一构建，日常开发无需安装 Visual Studio 或 Build Tools。
+macOS、Linux 和 Windows 开发者均直接从源码运行和测试，需要 Python 3.11+、uv 和可用的 tkinter。CI 和 Windows 发布构建使用 Python 3.12。Windows 命令在 Git Bash 中执行。正式 Windows exe 由 Windows CI 构建，也可在 Windows 上本地试打包。日常开发无需安装 Visual Studio 或 Build Tools。
 
 克隆自己的 fork 后，在项目根目录运行：
 

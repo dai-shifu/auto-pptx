@@ -44,7 +44,7 @@ jobs:
         run: |
           python -m pip install uv==0.11.17
           uv sync --locked --group build --python 3.12
-      - name: Check Windows build runtime
+      - name: Report Windows build runtime
         run: .venv/Scripts/python.exe -m scripts.check_windows_build
       - name: Cache Nuitka compilation
         uses: actions/cache@v4

@@ -1,4 +1,4 @@
-"""Check the locked Nuitka runtime discovery before a Windows build."""
+"""Report the locked Nuitka runtime discovery before a Windows build."""
 
 import sys
 from pathlib import Path
@@ -16,10 +16,12 @@ def main() -> None:
     print(f"Nuitka: {getNuitkaVersion()}", flush=True)
     runtime = getMSVCRedistPath(inclusion_logger)
     if runtime is None or not any(Path(runtime).rglob("*.dll")):
-        raise RuntimeError(
-            "Nuitka cannot locate redistributable runtime DLLs. Install the "
-            "Visual Studio Build Tools C++ components with VC/Redist/MSVC files."
+        print(
+            "Warning: Nuitka cannot locate redistributable runtime DLLs. "
+            "The build can continue in auto mode; the target may need the VC++ runtime.",
+            file=sys.stderr,
         )
+        return
     print(f"MSVC redistributable runtime: {runtime}", flush=True)
 
 

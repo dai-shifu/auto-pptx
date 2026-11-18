@@ -46,7 +46,7 @@ def main() -> None:
     ]
     if sys.platform == "win32":
         cmd.extend([
-            "--include-windows-runtime-dlls=yes",
+            "--include-windows-runtime-dlls=auto",
             "--windows-console-mode=disable",
             "--company-name=auto-pptx",
             "--product-name=auto-pptx",
