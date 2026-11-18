@@ -26,6 +26,8 @@ def layout_app(monkeypatch, request):
         if request.config.getoption("--require-gui"):
             pytest.fail(f"Required Tk display unavailable: {error}")
         pytest.skip(f"Real Tk layout requires a display or Xvfb: {error}")
+    # Tk defaults to a screen-sized maximum, which can clamp wide layouts in CI.
+    root.maxsize(1600, 950)
     root.geometry("1600x950")
     root.minsize(1000, 600)
     monkeypatch.setattr(gui.App, "_auto_load_config", lambda _self: None)
@@ -199,14 +201,17 @@ def test_mapping_reflow_and_layout_keep_state_and_generation_arguments(layout_ap
     original_cells = tuple(app.mapping_frame.winfo_children())
     original_variables = tuple(var for _, var in app.mapping_widgets)
     original_rows = app.tree.get_children()
-    wide_columns = len({int(cell.grid_info()["column"]) for cell in original_cells})
     original_values = app.tree.item("4", "values")
+    assert len({int(cell.grid_info()["column"]) for cell in original_cells}) == 4
 
-    for geometry in ("1000x600", "1600x950", "1000x600"):
+    for geometry, wide in (("1000x600", False), ("1600x950", True), ("1000x600", False)):
         app.root.geometry(geometry)
         _settle(app.root)
-    narrow_columns = len({int(cell.grid_info()["column"]) for cell in original_cells})
-    assert 1 <= narrow_columns < wide_columns <= 4
+        columns = len({int(cell.grid_info()["column"]) for cell in original_cells})
+        if wide:
+            assert columns == 4
+        else:
+            assert 1 <= columns < 4
     assert tuple(app.mapping_frame.winfo_children()) == original_cells
     assert tuple(var for _, var in app.mapping_widgets) == original_variables
     assert variable.get() == "报告标题"
