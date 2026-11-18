@@ -1,6 +1,7 @@
 """Actual Tk checks for overflow hints; run with Xvfb on headless hosts."""
 
 import tkinter as tk
+import time
 from tkinter import font as tkfont, ttk
 from types import SimpleNamespace
 
@@ -10,10 +11,12 @@ from src.gui_tooltip import TreeviewTooltip
 
 
 @pytest.fixture
-def preview():
+def preview(request):
     try:
         root = tk.Tk()
     except tk.TclError as exc:
+        if request.config.getoption("--require-gui"):
+            pytest.fail(f"Required Tk display unavailable: {exc}")
         pytest.skip(f"Tk display unavailable: {exc}; run using xvfb-run")
     root.geometry("500x250+20+20")
     tree = ttk.Treeview(root, columns=("#", "value"), show="headings")
@@ -42,6 +45,31 @@ def show(tree, tooltip, item):
     target = hover(tree, tooltip, item)
     tooltip._cancel("_pending")
     tooltip._show(target)
+    settle(tree.winfo_toplevel(), tooltip)
+
+
+def settle(root, tooltip):
+    """Wait for mapped geometry and scheduled layout, with a bounded timeout."""
+    deadline = time.monotonic() + 3
+    previous = None
+    stable = 0
+    while time.monotonic() < deadline:
+        root.update()
+        window = tooltip._window
+        geometry = None if window is None else (
+            window.winfo_ismapped(), window.geometry(),
+            tooltip._text.winfo_width(), tooltip._text.winfo_height(),
+        )
+        if geometry == previous and tooltip._layout_pending is None:
+            stable += 1
+            if stable >= 2:
+                return
+        else:
+            stable = 0
+        previous = geometry
+        root.after(10, root.quit)
+        root.mainloop()
+    pytest.fail("Tooltip layout did not settle within 3 seconds")
 
 
 def test_only_clipped_and_multiline_values_show_and_remain_complete(preview):
@@ -129,7 +157,9 @@ def test_long_hint_fits_screen_and_can_scroll_without_truncation(preview):
     root, tree, tooltip = preview
     value = "很长的内容 " * 3000
     tree.set("long", "value", value)
-    root.geometry("500x250+700+450")
+    left = max(0, root.winfo_screenwidth() - 520)
+    top = max(0, root.winfo_screenheight() - 300)
+    root.geometry(f"500x250+{left}+{top}")
     root.update()
     show(tree, tooltip, "long")
     root.update()
@@ -143,6 +173,8 @@ def test_long_hint_fits_screen_and_can_scroll_without_truncation(preview):
     tooltip._text.yview_moveto(1)
     root.update_idletasks()
     assert tooltip._text.yview()[0] > 0
+    assert tooltip._text.yview()[1] == pytest.approx(1)
+    assert tooltip._text.dlineinfo("end-1c") is not None
     # Moving from the source into the hint must cancel dismissal.
     tooltip._on_leave(SimpleNamespace())
     assert tooltip._leave_pending is not None
@@ -208,23 +240,34 @@ def test_full_heading_empty_value_and_leaving_before_delay_show_nothing(preview)
 
 def test_real_pointer_can_cross_from_cell_into_hint_and_leave_both(preview):
     root, tree, tooltip = preview
+    # Native pointer lookup only sees this interpreter's unobscured windows.
+    root.lift()
+    root.focus_force()
+    root.update()
     x, y, width, height = tree.bbox("long", "#2")
     pointer_x = x + width // 2
     tree.event_generate("<Motion>", x=pointer_x, y=y + height // 2, warp=True)
     root.update()
+    assert tree.winfo_containing(*tree.winfo_pointerxy()) is tree
     tooltip._cancel("_pending")
     tooltip._show(tooltip._target)
-    root.update()
+    settle(root, tooltip)
     window = tooltip._window
     # Move in single-pixel steps so the source-to-popup boundary is exercised.
-    for pointer_y in range(y + height // 2, y + height + 10):
+    destination_y = window.winfo_rooty() - tree.winfo_rooty() + 5
+    start_y = y + height // 2
+    direction = 1 if destination_y >= start_y else -1
+    for pointer_y in range(start_y, destination_y + direction, direction):
         tree.event_generate("<Motion>", x=pointer_x, y=pointer_y, warp=True)
         root.update()
     root.after(180, root.quit)
     root.mainloop()
     assert window.winfo_ismapped()
     pointer_widget = tree.winfo_containing(*tree.winfo_pointerxy())
-    assert str(pointer_widget).startswith(str(window) + ".")
+    assert str(pointer_widget).startswith(str(window) + "."), (
+        tree.winfo_pointerxy(), tree.winfo_rootx(), tree.winfo_rooty(),
+        window.winfo_rootx(), window.winfo_rooty(), window.geometry(), pointer_widget,
+    )
     tree.event_generate("<Motion>", x=5, y=5, warp=True)
     root.update()
     root.after(180, root.quit)
@@ -244,7 +287,7 @@ def test_short_clipped_hint_has_compact_height_after_initial_show_and_reuse(prev
         lines = tooltip._text.count("1.0", "end", "displaylines")[0]
         line_height = tooltip._font.metrics("linespace")
         expected = lines * line_height + 12
-        assert expected < 200
+        assert expected < min(400, root.winfo_screenheight() - 20)
         assert window.winfo_height() <= expected + line_height
         assert not tooltip._scrollbar.winfo_ismapped()
         assert tooltip._text.get("1.0", "end-1c") == short
@@ -254,7 +297,7 @@ def test_short_clipped_hint_has_compact_height_after_initial_show_and_reuse(prev
     tree.set("long", "value", "Very long explanation " * 3000)
     show(tree, tooltip, "long")
     root.update_idletasks()
-    assert window.winfo_height() == 400
+    assert window.winfo_height() == min(400, root.winfo_screenheight() - 20)
     assert tooltip._scrollbar.winfo_ismapped()
     tooltip.hide()
     tree.set("long", "value", short)
@@ -262,3 +305,21 @@ def test_short_clipped_hint_has_compact_height_after_initial_show_and_reuse(prev
     root.update_idletasks()
     assert tooltip._window is window
     assert_compact()
+
+
+@pytest.mark.parametrize("action", ["hide", "destroy", "change"])
+def test_pending_layout_is_cancelled_when_target_becomes_invalid(preview, action):
+    root, tree, tooltip = preview
+    target = hover(tree, tooltip, "long")
+    tooltip._cancel("_pending")
+    tooltip._show(target)
+    tooltip._on_text_configure(SimpleNamespace())
+    pending = tooltip._layout_pending
+    assert pending in root.tk.call("after", "info")
+    if action == "change":
+        hover(tree, tooltip, "short")
+    else:
+        getattr(tooltip, action)()
+    assert pending not in root.tk.call("after", "info")
+    root.update()
+    assert tooltip._layout_pending is None

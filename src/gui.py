@@ -13,7 +13,12 @@ from .auto_detect import (
 )
 from .config import Config, load_config, save_config
 from .excel_reader import read_sheet_rows
-from .gui_layout import MappingPane, Workspace, preview_column_widths
+from .gui_layout import (
+    MappingPane,
+    Workspace,
+    configure_preview_row_height,
+    preview_column_widths,
+)
 from .gui_tooltip import TreeviewTooltip
 from .generator import generate
 from .pptx_engine import load_template
@@ -116,6 +121,8 @@ class App:
         table.columnconfigure(0, weight=1)
         table.rowconfigure(0, weight=1)
         self.tree = ttk.Treeview(table, columns=columns, show="headings", height=12)
+        if root.tk.call("tk", "windowingsystem") == "win32":
+            configure_preview_row_height(self.tree)
         self.tree.heading("#", text="☑")
         self.tree.column("#", width=40, minwidth=40, anchor="center", stretch=False)
         self.tree.grid(row=0, column=0, sticky="nsew")
@@ -162,7 +169,7 @@ class App:
 
         # 来源标记：区分 config.toml 加载值和 auto_detect 临时值
         self._mapping_from_config: bool = False
-        self._tcol_from_config: bool = False
+        self._preferred_template_column: str | None = None
 
         # 标题行：可通过 Spinbox 或 auto-detect 设置
         self._header_row: int = 1
@@ -195,7 +202,10 @@ class App:
             if sheets:
                 self.sheet_var.set(sheets[0])
                 self._refresh_all()
+            else:
+                self._set_template_columns([])
         except Exception as e:
+            self._set_template_columns([])
             self.status_var.set(f"读取 Sheet 失败: {e}")
 
     def _on_sheet_change(self, _event=None):
@@ -203,7 +213,7 @@ class App:
 
     def _on_tcol_change(self, _event=None):
         # 模板列切换时重建 Treeview（关键列可能变），保留勾选
-        self._tcol_from_config = True
+        self._preferred_template_column = self.tcol_var.get() or None
         self._rebuild_treeview(preserve_checks=True)
 
     def _on_header_row_change(self):
@@ -213,6 +223,12 @@ class App:
 
     # ── 刷新逻辑 ──
 
+    def _set_template_columns(self, headers: list[str]) -> None:
+        columns = [header for header in headers if header]
+        self.tcol_combo["values"] = columns
+        preferred = self._preferred_template_column
+        self.tcol_var.set(preferred if preferred in columns else "")
+
     def _refresh_all(self):
         """Sheet 切换或 PPT/Excel 变化时刷新 Treeview 和映射。"""
         excel_path = self.excel_var.get()
@@ -220,6 +236,7 @@ class App:
         tpl_path = self.tpl_var.get()
 
         if not excel_path or not sheet_name:
+            self._set_template_columns([])
             return
 
         try:
@@ -230,13 +247,13 @@ class App:
             self._headers, self._rows = read_sheet_rows(
                 excel_path, sheet_name, header_row=self._header_row,
             )
-            # 更新模板列下拉框的可选值
-            self.tcol_combo["values"] = self._headers
+            self._set_template_columns(self._headers)
             if tpl_path:
                 self._auto_detect()
             self._rebuild_treeview()
             self._rebuild_mapping()
         except Exception as e:
+            self._set_template_columns([])
             self.status_var.set(f"加载数据失败: {e}")
 
     def _detect_header_row(self, excel_path: str, sheet_name: str, tpl_path: str):
@@ -269,9 +286,8 @@ class App:
             self._auto_mapping = detection.mapping  # {excel_col: placeholder}
             self._placeholders = list(metadata.placeholders)
 
-            # 模板列：仅覆盖非 config 来源的值
-            if detection.template_column and not self._tcol_from_config:
-                self.tcol_var.set(detection.template_column)
+            if self._preferred_template_column not in self._headers:
+                self.tcol_var.set(detection.template_column or "")
 
             if detection.conflicts:
                 names = ", ".join(conflict.placeholder for conflict in detection.conflicts)
@@ -508,15 +524,13 @@ class App:
             messagebox.showerror("错误", str(e))
 
     def _auto_load_config(self):
-        """启动时从 config.toml 加载配置，文件不存在则自动生成默认配置。"""
+        """启动时加载 config.toml，文件不存在则创建空配置。"""
         try:
             config = load_config(CONFIG_PATH)
             # 首次启动时自动写入 config.toml 到磁盘
             if not CONFIG_PATH.exists():
                 save_config(config, CONFIG_PATH)
-            if config.template_column:
-                self.tcol_var.set(config.template_column)
-                self._tcol_from_config = True
+            self._preferred_template_column = config.template_column or None
             if config.mapping:
                 self._auto_mapping = config.mapping
                 self._explicit_mapping = dict(config.mapping)
@@ -531,8 +545,16 @@ class App:
 
 
 def main() -> None:
+    if sys.platform == "win32":
+        from ctypes import windll
+
+        # Set system DPI awareness in the GUI process before Tk creates a window.
+        windll.user32.SetProcessDPIAware()
     root = tk.Tk()
-    root.geometry("1400x850")
+    # Leave room for the window frame and taskbar on smaller displays.
+    width = max(1000, min(1600, root.winfo_screenwidth() - 64))
+    height = max(600, min(950, root.winfo_screenheight() - 96))
+    root.geometry(f"{width}x{height}")
     root.minsize(1000, 600)
     App(root)
     root.mainloop()

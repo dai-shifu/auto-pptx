@@ -1,13 +1,14 @@
 """Real Tk geometry and state regressions for the bounded GUI workspace."""
 
+from math import ceil
 from types import SimpleNamespace
 import tkinter as tk
-from tkinter import ttk
+from tkinter import font as tkfont, ttk
 
 import pytest
 
 from src import gui
-from src.gui_layout import preview_column_widths, wheel_units
+from src.gui_layout import configure_preview_row_height, preview_column_widths, wheel_units
 
 
 def _settle(root: tk.Tk) -> None:
@@ -18,12 +19,16 @@ def _settle(root: tk.Tk) -> None:
 
 
 @pytest.fixture
-def layout_app(monkeypatch):
+def layout_app(monkeypatch, request):
     try:
         root = tk.Tk()
     except tk.TclError as error:
+        if request.config.getoption("--require-gui"):
+            pytest.fail(f"Required Tk display unavailable: {error}")
         pytest.skip(f"Real Tk layout requires a display or Xvfb: {error}")
-    root.geometry("1400x850")
+    # Tk defaults to a screen-sized maximum, which can clamp wide layouts in CI.
+    root.maxsize(1600, 950)
+    root.geometry("1600x950")
     root.minsize(1000, 600)
     monkeypatch.setattr(gui.App, "_auto_load_config", lambda _self: None)
     app = gui.App(root)
@@ -43,6 +48,28 @@ def layout_app(monkeypatch):
         yield app
     finally:
         root.destroy()
+
+
+@pytest.mark.parametrize("scaling", [96 / 72, 144 / 72])
+@pytest.mark.parametrize("theme_height, font_size", [(20, 18), (54, 9)])
+def test_preview_row_height_respects_scaled_font_and_theme(layout_app, scaling, theme_height, font_size):
+    root = layout_app.root
+    root.tk.call("tk", "scaling", scaling)
+    style = ttk.Style(root)
+    font = tkfont.Font(root=root, size=font_size)
+    style.theme_create("preview-test", parent=style.theme_use())
+    style.theme_use("preview-test")
+    style.configure("Treeview", font=font, rowheight=theme_height)
+
+    tree = ttk.Treeview(root, height=2)
+    tree.place(x=0, y=0)
+    row = tree.insert("", "end", text="任务 gj 123 ☑")
+    configure_preview_row_height(tree)
+    _settle(root)
+
+    minimum = font.metrics("linespace") + 2 * ceil(tree.winfo_fpixels("1.5p"))
+    assert tree.bbox(row)[3] == max(theme_height, minimum)
+    assert int(style.lookup("Treeview", "rowheight")) == theme_height
 
 
 @pytest.mark.parametrize("count", [0, 1, 3, 5, 6])
@@ -88,7 +115,7 @@ def _assert_visible_inside_root(widget, root):
     assert top + widget.winfo_height() <= root.winfo_height()
 
 
-@pytest.mark.parametrize("geometry", ["1400x850", "1000x600"])
+@pytest.mark.parametrize("geometry", ["1600x950", "1000x600"])
 def test_300_rows_and_many_mappings_remain_within_window(layout_app, geometry):
     app = layout_app
     app.root.geometry(geometry)
@@ -174,14 +201,17 @@ def test_mapping_reflow_and_layout_keep_state_and_generation_arguments(layout_ap
     original_cells = tuple(app.mapping_frame.winfo_children())
     original_variables = tuple(var for _, var in app.mapping_widgets)
     original_rows = app.tree.get_children()
-    wide_columns = len({int(cell.grid_info()["column"]) for cell in original_cells})
     original_values = app.tree.item("4", "values")
+    assert len({int(cell.grid_info()["column"]) for cell in original_cells}) == 4
 
-    for geometry in ("1000x600", "1400x850", "1000x600"):
+    for geometry, wide in (("1000x600", False), ("1600x950", True), ("1000x600", False)):
         app.root.geometry(geometry)
         _settle(app.root)
-    narrow_columns = len({int(cell.grid_info()["column"]) for cell in original_cells})
-    assert 1 <= narrow_columns < wide_columns <= 4
+        columns = len({int(cell.grid_info()["column"]) for cell in original_cells})
+        if wide:
+            assert columns == 4
+        else:
+            assert 1 <= columns < 4
     assert tuple(app.mapping_frame.winfo_children()) == original_cells
     assert tuple(var for _, var in app.mapping_widgets) == original_variables
     assert variable.get() == "报告标题"

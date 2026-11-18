@@ -2,7 +2,20 @@
 
 import tkinter as tk
 from collections.abc import Callable
+from math import ceil
 from tkinter import ttk
+
+
+def configure_preview_row_height(tree: ttk.Treeview) -> None:
+    """Keep Windows preview rows taller than the current font plus 2 DIP per side."""
+    style = ttk.Style(tree)
+    font = style.lookup("Treeview", "font", default="TkDefaultFont")
+    line_height = tree.tk.call("font", "metrics", font, "-displayof", tree, "-linespace")
+    theme_height = tree.winfo_pixels(style.lookup("Treeview", "rowheight", default=20))
+    # Two 96-DPI pixels equal 1.5 points; round up to preserve the minimum.
+    padding = ceil(tree.winfo_fpixels("1.5p"))
+    style.configure("Preview.Treeview", rowheight=max(theme_height, line_height + 2 * padding))
+    tree.configure(style="Preview.Treeview")
 
 
 def preview_column_widths(inner_width: int, count: int) -> list[int]:

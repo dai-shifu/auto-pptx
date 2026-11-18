@@ -5,7 +5,13 @@ Define automatic template-column and placeholder-mapping suggestions together wi
 ## Requirements
 ### Requirement: 模板列自动检测
 
-系统 SHALL 在加载 Excel 后自动检测模板列并通过自动检测结果填充下拉框默认值，同时允许用户手动在下拉框中切换选择。
+「模板列」下拉框 SHALL 只列出当前工作表标题行的非空列名。读取 Excel 前不预选。加载后，系统 SHALL 优先使用仍有效的保存值或手动选择，否则使用自动检测结果；两者均不可用时保持未选中。
+
+#### Scenario: 已保存的列名不在当前工作表中
+
+- **WHEN** 配置保存了「填料」，当前 Excel 标题行没有该列
+- **THEN** 下拉框不显示「填料」，只提供当前 Excel 的非空列名
+- **AND** 系统可自动选中匹配的实际列；没有匹配时保持未选中
 
 #### Scenario: 自动检测成功
 

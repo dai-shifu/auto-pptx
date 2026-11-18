@@ -21,6 +21,8 @@ class TreeviewTooltip:
         self._target: _Target | None = None
         self._pending: str | None = None
         self._leave_pending: str | None = None
+        self._layout_pending: str | None = None
+        self._layout: tuple[int, ...] | None = None
         self._window: tk.Toplevel | None = None
         self._text: tk.Text | None = None
         self._scrollbar: ttk.Scrollbar | None = None
@@ -98,6 +100,8 @@ class TreeviewTooltip:
         """Cancel pending work and hide the hint before preview changes."""
         self._cancel("_pending")
         self._cancel("_leave_pending")
+        self._cancel("_layout_pending")
+        self._layout = None
         self._target = None
         if self._window is not None:
             try:
@@ -250,6 +254,8 @@ class TreeviewTooltip:
             cursor="arrow", takefocus=False, highlightthickness=0,
         )
         text.grid(row=0, column=0, sticky="nsew")
+        text.bind("<Configure>", self._on_text_configure, add="+")
+        text.bind("<Map>", self._on_text_configure, add="+")
         scrollbar = ttk.Scrollbar(window, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=scrollbar.set)
         scrollbar.grid(row=0, column=1, sticky="ns")
@@ -285,20 +291,33 @@ class TreeviewTooltip:
         below = self.tree.winfo_rooty() + bbox[1] + bbox[3]
         initial_y = max(10, min(below, screen_height - max_height - 10))
         window.geometry(f"{width}x{max_height}+{x}+{initial_y}")
-        # A withdrawn Toplevel does not apply its pixel geometry to Text.
-        # Map it before querying wrapped lines, including when reusing it.
+        self._cancel("_layout_pending")
+        self._layout = (width, max_height, screen_height, x, below, bbox[1])
         window.deiconify()
-        window.update_idletasks()
-        # Query wrapped display lines after the Text's pixel width is set.
+        window.lift()
+
+    def _on_text_configure(self, event: tk.Event) -> None:
+        if self._destroyed or self._layout is None:
+            return
+        self._cancel("_layout_pending")
+        self._layout_pending = self.tree.after_idle(self._size_window)
+
+    def _size_window(self) -> None:
+        self._layout_pending = None
+        if self._destroyed or self._layout is None or self._target is None:
+            return
+        window, text, scrollbar = self._window, self._text, self._scrollbar
+        if not text.winfo_ismapped() or text.winfo_width() <= 1:
+            return
+        width, max_height, screen_height, x, below, source_y = self._layout
+        font = self._font
         lines = text.count("1.0", "end", "displaylines")
         needed = (lines[0] if lines else 1) * font.metrics("linespace") + 12
         height = min(max_height, max(font.metrics("linespace") + 12, needed))
         if needed <= max_height:
             scrollbar.grid_remove()
         y = below if below + height <= screen_height - 10 else (
-            self.tree.winfo_rooty() + bbox[1] - height
+            self.tree.winfo_rooty() + source_y - height
         )
         y = max(10, min(y, screen_height - height - 10))
         window.geometry(f"{width}x{height}+{x}+{y}")
-        window.deiconify()
-        window.lift()

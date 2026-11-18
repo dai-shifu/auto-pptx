@@ -84,7 +84,7 @@ def windows_check(tmp_path, monkeypatch):
     process.poll.return_value = None
 
     def start(args, cwd):
-        (cwd / "config.toml").write_text('header_row = 1\ntemplate_column = "template"\n')
+        (cwd / "config.toml").write_bytes(b"")
         return process
 
     monkeypatch.setattr(check.subprocess, "Popen", start)

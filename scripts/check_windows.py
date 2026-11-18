@@ -8,7 +8,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import tomllib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from ctypes import wintypes
@@ -138,10 +137,8 @@ def check_windows(directory: Path, *, runner_temp: Path | None = None) -> None:
                 time.sleep(0.5)
             else:
                 raise RuntimeError("Visible Tk window did not appear within 60 seconds")
-            with config.open("rb") as stream:
-                created = tomllib.load(stream)
-            if created.get("header_row") != 1 or not created.get("template_column"):
-                raise ValueError("First-run configuration is invalid")
+            if config.read_bytes():
+                raise ValueError("First-run configuration must be empty")
         finally:
             try:
                 # onefile launches a child; kill and wait for both processes.

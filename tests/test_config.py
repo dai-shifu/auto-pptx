@@ -1,30 +1,28 @@
 import pytest
-from pathlib import Path
 
 from src.config import Config, load_config, save_config
 
 
-def test_load_config_success():
+def test_load_config_success(tmp_path):
     """加载 config.toml，验证 template_column 和 mapping 方向。"""
-    cfg = Path(__file__).parent / "tmp_config.toml"
+    cfg = tmp_path / "config.toml"
     cfg.write_text(
         'template_column = "填料"\n\n[mapping]\n"标题" = "title"\n"作者" = "author"\n',
         encoding="utf-8",
     )
-    try:
-        config = load_config(cfg)
-        assert config.template_column == "填料"
-        assert config.mapping == {"标题": "title", "作者": "author"}
-    finally:
-        cfg.unlink()
-
-
-def test_load_config_file_not_found():
-    """文件不存在时返回默认 Config，不抛异常。"""
-    config = load_config("nonexistent.toml")
+    config = load_config(cfg)
     assert config.template_column == "填料"
-    assert config.header_row == 1
+    assert config.mapping == {"标题": "title", "作者": "author"}
+
+
+def test_load_config_file_not_found(tmp_path):
+    """文件不存在时没有已保存的设置，也不创建文件。"""
+    path = tmp_path / "nonexistent.toml"
+    config = load_config(path)
+    assert config.template_column == ""
+    assert config.header_row is None
     assert config.mapping == {}
+    assert not path.exists()
 
 
 def test_load_config_invalid_toml(tmp_path):
@@ -34,25 +32,35 @@ def test_load_config_invalid_toml(tmp_path):
         load_config(bad)
 
 
-def test_load_config_defaults(tmp_path):
-    """缺失字段使用默认值。"""
+def test_load_config_preserves_only_saved_settings(tmp_path):
     cfg = tmp_path / "cfg.toml"
     cfg.write_text('template_column = "标签"\n', encoding="utf-8")
     config = load_config(cfg)
     assert config.template_column == "标签"
+    assert config.header_row is None
     assert config.mapping == {}
+
+
+def test_load_config_without_template_column(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('header_row = 2\n', encoding="utf-8")
+    config = load_config(cfg)
+    assert config.template_column == ""
+    assert config.header_row == 2
 
 
 def test_save_and_load_roundtrip(tmp_path):
     """保存再加载，映射方向保持不变（excel_col → placeholder）。"""
     config = Config(
         template_column="填料",
+        header_row=1,
         mapping={"标题": "title", "部门": "dept"},
     )
     path = tmp_path / "config.toml"
     save_config(config, path)
     loaded = load_config(path)
     assert loaded.template_column == "填料"
+    assert loaded.header_row == 1
     assert loaded.mapping == {"标题": "title", "部门": "dept"}
 
 
@@ -64,11 +72,4 @@ def test_save_without_mapping(tmp_path):
     loaded = load_config(path)
     assert loaded.template_column == "填料"
     assert loaded.mapping == {}
-
-
-def test_load_config_creates_nothing_when_missing(tmp_path):
-    """load_config 返回默认值但不在磁盘上创建文件。"""
-    path = tmp_path / "nonexistent.toml"
-    config = load_config(path)
-    assert not path.exists()  # 只返回默认值，不创建文件
-    assert config.template_column == "填料"
+    assert path.read_text(encoding="utf-8") == 'template_column = "填料"\n'

@@ -109,6 +109,29 @@ def build_fixture_set(directory: str | Path) -> tuple[Path, Path]:
     )
 
 
+def build_acceptance_fixture_set(directory: str | Path) -> tuple[Path, Path]:
+    """Extend temporary canonical assets with an image, chart and missing value."""
+    from PIL import Image
+    from pptx.chart.data import CategoryChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+
+    template, workbook = build_fixture_set(directory)
+    png = template.parent / "synthetic.png"
+    Image.new("RGB", (64, 32), "#336699").save(png)
+    prs = Presentation(template)
+    prs.slides[0].shapes.add_picture(str(png), Inches(9), Inches(5), width=Inches(1))
+    _add_textbox(prs.slides[0], "{{acceptance_unmapped}}", 1, 6, 5, 0.5)
+    data = CategoryChartData()
+    data.categories = ["A", "B"]
+    data.add_series("Synthetic", (12, 34))
+    prs.slides[2].shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED,
+        Inches(7), Inches(1), Inches(4), Inches(3), data,
+    )
+    prs.save(template)
+    return template, workbook
+
+
 def _add_textbox(slide, text: str, left: float, top: float, width: float, height: float) -> None:
     box = slide.shapes.add_textbox(
         Inches(left), Inches(top), Inches(width), Inches(height)
