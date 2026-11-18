@@ -41,7 +41,7 @@ def test_checker_rejects_incomplete_acceptance(acceptance, corruption):
     elif corruption == "config":
         (directory / "config.toml").write_text('header_row = 2\n')
     elif corruption == "mapping":
-        save_config(Config(template_column="模板", mapping={"标题": "标题"}), directory / "config.toml")
+        save_config(Config(template_column="模板", header_row=1, mapping={"标题": "标题"}), directory / "config.toml")
     elif corruption == "workbook_relationship":
         with ZipFile(output) as archive:
             members = {name: archive.read(name) for name in archive.namelist()}

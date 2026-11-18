@@ -24,12 +24,13 @@ When the application is packaged as a standalone executable (Nuitka `--onefile`)
 
 ### Requirement: Config file auto-created on startup when missing
 
-When `config.toml` does not exist at the resolved path, the system SHALL automatically create it with default configuration values at startup, rather than waiting for a successful generation.
+When `config.toml` does not exist at the resolved path, the system SHALL create an empty file at startup. Startup SHALL NOT write preset template columns, header rows, or mappings.
 
-#### Scenario: First launch creates config with defaults
+#### Scenario: First launch creates an empty config
 
 - **WHEN** the application is launched for the first time and no `config.toml` exists
-- **THEN** a `config.toml` file SHALL be created at the resolved path containing default values (`template_column = "填料"`, `header_row = 1`)
+- **THEN** the system SHALL create an empty `config.toml` at the resolved path
+- **AND** the GUI SHALL start at row 1 without treating it as a saved selection, so header-row detection remains available
 
 #### Scenario: Subsequent launch loads existing config
 
@@ -41,14 +42,14 @@ When `config.toml` does not exist at the resolved path, the system SHALL automat
 - **WHEN** `config.toml` is missing and the target directory is read-only (cannot create file)
 - **THEN** the application SHALL still launch with in-memory defaults and display a status message indicating the config could not be saved
 
-### Requirement: load_config returns defaults when file is absent
+### Requirement: load_config returns no saved settings for absent or empty files
 
-The `load_config()` function SHALL return a `Config` with default values when the target file does not exist, rather than raising `FileNotFoundError`.
+The `load_config()` function SHALL return a `Config` with no saved settings when the target file is absent or empty. Loading a missing file SHALL NOT create it.
 
-#### Scenario: load_config on missing file
+#### Scenario: load_config on missing or empty file
 
-- **WHEN** `load_config()` is called with a path that does not exist
-- **THEN** it SHALL return `Config(template_column="填料", header_row=1, mapping={})` without raising an exception
+- **WHEN** `load_config()` is called with a missing or empty file
+- **THEN** it SHALL return `Config(template_column="", header_row=None, mapping={})` without raising an exception
 
 #### Scenario: load_config on invalid TOML still raises
 

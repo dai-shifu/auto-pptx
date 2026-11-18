@@ -13,7 +13,7 @@ uv sync --locked --group dev
 uv run run.py
 ```
 
-首次启动会创建 `config.toml`，请勿提交。Linux 需安装 Tk；无桌面环境运行 GUI 测试还需 Xvfb 和 xauth。
+首次启动会创建空的 `config.toml`，请勿提交。Linux 需安装 Tk；无桌面环境运行 GUI 测试还需 Xvfb 和 xauth。
 
 ## 修改与测试
 

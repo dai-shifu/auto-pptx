@@ -78,7 +78,7 @@ class GitHub:
             "draft": True,
             "body": (
                 f"Windows x64；源码提交：{commit}\n\n"
-                "只需下载 exe 即可运行；首次启动在同目录创建 config.toml，请放在可写目录。\n"
+                "只需下载 exe 即可运行；首次启动在同目录创建空的 config.toml，请放在可写目录。\n"
                 "可选下载 SHA256SUMS.txt 核对校验和。"
             ),
         }).encode()))

@@ -4,6 +4,7 @@ import pytest
 
 from src import gui
 from src.auto_detect import detect_header_row
+from tests.create_fixtures import DATA_HEADERS, DATA_SHEET, DETAIL_HEADERS, DETAIL_SHEET, build_test_xlsx
 
 
 class _Var:
@@ -26,7 +27,9 @@ def _app_for_detection() -> gui.App:
     app._rows = [["cover", "报告"]]
     app._auto_mapping = {}
     app._placeholders = []
-    app._tcol_from_config = False
+    app._preferred_template_column = None
+    app._header_row = 1
+    app._hrow_from_config = False
     app._template_metadata_for = lambda _path: gui.TemplateMetadata(
         ("cover", "summary"), ("标题",)
     )
@@ -42,11 +45,57 @@ def test_first_start_creates_configuration_next_to_executable(tmp_path, monkeypa
 
     app._auto_load_config()
 
-    assert config_path.is_file()
+    assert config_path.read_bytes() == b""
     config = gui.load_config(config_path)
-    assert config.header_row == 1
-    assert config.template_column == app.tcol_var.get()
+    assert config.header_row is None
+    assert app._header_row == app.hrow_var.get() == 1
+    assert not app._hrow_from_config
+    assert config.template_column == app.tcol_var.get() == ""
     assert app.status_var.get() == "已从 config.toml 加载配置"
+
+
+def test_template_column_selection_only_uses_current_excel_headers(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.toml"
+    saved = 'template_column = "填料"\nheader_row = 1\n'
+    config_path.write_text(saved, encoding="utf-8")
+    monkeypatch.setattr(gui, "CONFIG_PATH", config_path)
+    app = _app_for_detection()
+    app.tcol_combo = {}
+    app.excel_var = _Var(str(build_test_xlsx(tmp_path / "data.xlsx")))
+    app.sheet_var = _Var(DATA_SHEET)
+    app.hrow_var = _Var(1)
+    app._rebuild_treeview = lambda **_opts: None
+    app._rebuild_mapping = lambda: None
+    app._auto_load_config()
+
+    assert app.tcol_var.get() == ""
+    assert app._hrow_from_config
+    assert config_path.read_text(encoding="utf-8") == saved
+
+    app.tpl_var.set("")
+    app._refresh_all()
+    assert app.tcol_combo["values"] == list(DATA_HEADERS)
+    assert app.tcol_var.get() == ""
+
+    app.tpl_var.set("template.pptx")
+    app._refresh_all()
+    assert app.tcol_var.get() == "模板"
+
+    app.sheet_var.set(DETAIL_SHEET)
+    app.hrow_var.set(2)
+    app._on_header_row_change()
+    assert app.tcol_combo["values"] == list(DETAIL_HEADERS)
+    assert app.tcol_var.get() == "填料"
+
+    app.tcol_var.set("项目编号")
+    app._on_tcol_change()
+    app._refresh_all()
+    assert app.tcol_var.get() == "项目编号"
+
+    app.sheet_var.set("不存在")
+    app._refresh_all()
+    assert app.tcol_combo["values"] == []
+    assert app.tcol_var.get() == ""
 
 
 def test_auto_detect_recomputes_when_data_context_changes(monkeypatch):

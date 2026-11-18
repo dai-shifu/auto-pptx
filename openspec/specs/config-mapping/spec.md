@@ -66,7 +66,7 @@ Define persisted Excel-column-to-PowerPoint-placeholder mappings and template-co
 
 ### Requirement: 列名到占位符映射
 
-config.toml SHALL 定义 `[mapping]` 段，格式为 `"Excel列名" = "PPT占位符名"`（excel_col → placeholder 方向）。
+保存映射时，`config.toml` 的 `[mapping]` 段 SHALL 使用 `"Excel列名" = "PPT占位符名"` 格式（excel_col → placeholder 方向）。没有映射时不写入该段。
 
 #### Scenario: 映射生效
 
@@ -75,7 +75,7 @@ config.toml SHALL 定义 `[mapping]` 段，格式为 `"Excel列名" = "PPT占位
 
 ### Requirement: 模板标记列名
 
-config.toml SHALL 定义 `template_column` 字段，指定 Excel 中标识模板的列名。该列的值经 `"/"` 分割后直接作为模板标识名称匹配 `{{tpl::name}}`。
+`config.toml` 中的 `template_column` 字段 SHALL 记录 Excel 中标识模板的列名；未指定时不写入该字段。该列的值经 `"/"` 分割后直接作为模板标识名称匹配 `{{tpl::name}}`。
 
 #### Scenario: 指定模板列
 

@@ -6,8 +6,8 @@ from pathlib import Path
 
 @dataclass
 class Config:
-    template_column: str = "填料"
-    header_row: int = 1
+    template_column: str = ""
+    header_row: int | None = None
     mapping: dict[str, str] = field(default_factory=dict)  # excel_col → placeholder
 
 
@@ -26,8 +26,8 @@ def load_config(path: str | Path) -> Config:
         raise ValueError("配置文件格式错误: 顶层必须是字典")
 
     return Config(
-        template_column=str(data.get("template_column", "填料")),
-        header_row=int(data.get("header_row", 1)),
+        template_column=str(data.get("template_column", "")),
+        header_row=int(data["header_row"]) if "header_row" in data else None,
         mapping=_parse_string_dict(data.get("mapping", {})),
     )
 
@@ -45,14 +45,17 @@ def _escape_toml_basic_string(s: str) -> str:
 
 def save_config(config: Config, path: str | Path) -> None:
     path = Path(path)
-    tpl_col = _escape_toml_basic_string(config.template_column)
-    lines = [
-        f'template_column = "{tpl_col}"\n',
-        f'header_row = {config.header_row}\n',
-    ]
+    lines: list[str] = []
+    if config.template_column:
+        tpl_col = _escape_toml_basic_string(config.template_column)
+        lines.append(f'template_column = "{tpl_col}"\n')
+    if config.header_row is not None:
+        lines.append(f"header_row = {config.header_row}\n")
 
     if config.mapping:
-        lines.append("\n[mapping]\n")
+        if lines:
+            lines.append("\n")
+        lines.append("[mapping]\n")
         for excel_col, placeholder in config.mapping.items():
             esc_key = _escape_toml_basic_string(excel_col)
             esc_val = _escape_toml_basic_string(placeholder)

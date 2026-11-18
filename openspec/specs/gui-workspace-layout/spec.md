@@ -11,9 +11,15 @@ The GUI SHALL keep file selection and Sheet settings above the workspace and the
 
 #### Scenario: Window is reduced to its minimum size
 
-- **WHEN** the user reduces the window from 1400×850 to 1000×600
+- **WHEN** the user reduces the window from its initial size to 1000×600
 - **THEN** file selection, Sheet settings, the generation button, and status remain visible
 - **AND** the workspace resizes without pushing those controls outside the window
+
+#### Scenario: Window first opens
+
+- **WHEN** the application starts
+- **THEN** its initial size SHALL be 1600×950 where the screen has enough space
+- **AND** the application SHALL reduce the initial size on smaller screens, while retaining the 1000×600 minimum
 
 ### Requirement: Preview and mapping panes have an adjustable height boundary
 
