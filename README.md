@@ -12,19 +12,17 @@
 
 ![蛋白表达与纯化日报：DEMO-001 项目进展实际成品](examples/bio-daily/previews/slide-02.png)
 
-[查看示例与下载模板](examples/bio-daily/README.md)
-
 ## 快速开始
 
-准备软件、维护人员提供的 `.pptx` 模板和配套 `.xlsx` 文件。首次试用可使用[日报示例](examples/bio-daily/README.md)。
+准备软件、维护人员提供的 `.pptx` 模板和配套 `.xlsx` 文件。首次试用可[查看日报示例并下载模板](examples/bio-daily/README.md)。
 
 1. 启动软件，选择模板和 Excel 文件。
 2. 确认工作表、标题行、模板列，以及 **Excel 列 → PPT 占位符**映射。
-3. 勾选需要生成的数据行，点击“生成 PPT”。
+3. 点击“全选”或逐行勾选需要生成的数据行，再点击“生成 PPT”。
 
 ![软件实际界面：已加载日报示例，数据行尚未勾选](docs/images/app-interface.png)
 
-上图为 Windows 实际界面。生成前需点击“全选”或逐行勾选；各区域说明见[界面说明](docs/使用培训.md#界面说明)。
+上图为 Windows 实际界面，各区域说明见[界面说明](docs/使用培训.md#界面说明)。
 
 生成文件保存在 **Excel 所在目录**，名称为 `output_YYYYMMDD_HHMMSS.pptx`。“完成”对话框和底部状态栏会显示保存路径。
 

@@ -10,9 +10,29 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  workflow-lint:
+    name: Workflow lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check workflow files
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color -shellcheck= -pyflakes=
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
     env:
       UV_PYTHON_DOWNLOADS: never
     steps:
@@ -22,12 +42,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install test tools
+      - name: Install Linux display tools
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb xauth
+      - name: Install test tools
+        run: |
           python -m pip install uv==0.11.17
           uv sync --locked --group dev --python 3.12
-      - name: Test with a real display
+      - name: Test with a real Linux display
+        if: runner.os == 'Linux'
         run: |
-          xvfb-run -a sh -e -c '.venv/bin/python -m scripts.check_display; .venv/bin/python -m pytest -q'
+          xvfb-run -a sh -e -c '.venv/bin/python -m scripts.check_display; .venv/bin/python -m pytest -q --require-gui'
+      - name: Test with a real Windows display
+        if: runner.os == 'Windows'
+        run: |
+          .venv/Scripts/python.exe -m scripts.check_display
+          .venv/Scripts/python.exe -m pytest -q --require-gui --capture=sys

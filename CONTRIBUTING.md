@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-需要 Python 3.11+、uv 和可用的 tkinter。CI 和 Windows 发布构建使用 Python 3.12。Windows 命令在 Git Bash 中执行。
+macOS、Linux 和 Windows 开发者均直接从源码运行和测试，需要 Python 3.11+、uv 和可用的 tkinter。CI 和 Windows 发布构建使用 Python 3.12。Windows 命令在 Git Bash 中执行。Windows exe 由 Windows CI 统一构建，日常开发无需安装 Visual Studio 或 Build Tools。
 
 克隆自己的 fork 后，在项目根目录运行：
 
@@ -60,4 +60,4 @@ GUI 测试跳过不代表验证通过。请在 PR 中说明未验证的部分。
 
 使用简短明确的标题，如 `fix: preserve row selection`。说明用户可见的变化、关联 Issue 或 OpenSpec 变更，以及验证命令和结果。
 
-GUI 修改附截图。生成行为修改说明合成输入、输出页数和警告。注明配置格式或测试资源是否变化。分支与 PR 会运行 CI 完整测试。
+GUI 修改附截图。生成行为修改说明合成输入、输出页数和警告。注明配置格式或测试资源是否变化。分支与 PR 会静态检查所有 workflow，并在 Linux 和 Windows 运行完整源码测试。

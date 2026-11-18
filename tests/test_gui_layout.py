@@ -18,10 +18,12 @@ def _settle(root: tk.Tk) -> None:
 
 
 @pytest.fixture
-def layout_app(monkeypatch):
+def layout_app(monkeypatch, request):
     try:
         root = tk.Tk()
     except tk.TclError as error:
+        if request.config.getoption("--require-gui"):
+            pytest.fail(f"Required Tk display unavailable: {error}")
         pytest.skip(f"Real Tk layout requires a display or Xvfb: {error}")
     root.geometry("1400x850")
     root.minsize(1000, 600)

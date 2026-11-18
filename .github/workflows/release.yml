@@ -44,8 +44,27 @@ jobs:
         run: |
           python -m pip install uv==0.11.17
           uv sync --locked --group build --python 3.12
+      - name: Check Windows build runtime
+        run: .venv/Scripts/python.exe -m scripts.check_windows_build
+      - name: Cache Nuitka compilation
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/nuitka-cache
+          key: ${{ runner.os }}-${{ runner.arch }}-nuitka-py3.12-${{ hashFiles('uv.lock') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-nuitka-py3.12-${{ hashFiles('uv.lock') }}-
       - name: Compile
+        env:
+          NUITKA_CACHE_DIR: ${{ runner.temp }}/nuitka-cache
         run: .venv/Scripts/python.exe build.py
+      - name: Preserve compilation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuitka-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/compilation-report.xml
+          if-no-files-found: warn
+          retention-days: 30
       - name: Package tagged release
         if: github.event_name == 'push'
         run: .venv/Scripts/python.exe -m scripts.release package --tag "$RELEASE_TAG"
