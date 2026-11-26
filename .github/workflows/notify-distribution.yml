@@ -1,0 +1,55 @@
+name: Notify Math404 distribution
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    if: github.event.release.draft == false && github.event.release.prerelease == false && vars.DISTRIBUTION_NOTIFY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: distribution-notify
+    steps:
+      - name: Validate release and request central reconciliation
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DISPATCH_TOKEN: ${{ secrets.MATH404_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Not a formal stable version; skip notification."
+            exit 0
+          fi
+          if [[ -z "$DISPATCH_TOKEN" ]]; then
+            echo "::error::Distribution notification token missing"
+            exit 1
+          fi
+          # Fixed destination and ref. No checkout of release code or asset execution.
+          # Retry only transient errors; daily central reconciliation covers lost events.
+          for attempt in 1 2 3; do
+            status="$(curl --silent --show-error --max-time 30 --connect-timeout 10 \
+              --output /dev/null --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $DISPATCH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "Content-Type: application/json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --data '{"ref":"main"}' \
+              https://api.github.com/repos/dai-shifu/math404/actions/workflows/sync-releases.yml/dispatches)" || status=000
+            if [[ "$status" == 204 || "$status" == 200 ]]; then
+              echo "Central sync request accepted; verify result in math404 Actions."
+              exit 0
+            fi
+            if [[ "$status" != 000 && "$status" != 429 && "$status" != 5?? ]]; then
+              echo "::error::Dispatch rejected (HTTP $status)"
+              exit 1
+            fi
+            if [[ "$attempt" != 3 ]]; then sleep "$((attempt * 3))"; fi
+          done
+          echo "::error::Dispatch retry exhausted; central daily reconciliation remains available."
+          exit 1
