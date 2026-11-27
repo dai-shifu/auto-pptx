@@ -14,15 +14,17 @@
 
 ## 快速开始
 
-准备软件、维护人员提供的 `.pptx` 模板和配套 `.xlsx` 文件。首次试用可[查看日报示例并下载模板](examples/bio-daily/README.md)。
+第一次使用？跟着[入门指南](docs/getting-started.md)打开公开日报样例，只勾选 **Excel 第 2 行**，生成一页「日报总览」。使用 Windows 发布版无需源码或 Python。
 
-1. 启动软件，选择模板和 Excel 文件。
+使用自己的配套 `.pptx` 模板和 `.xlsx` 文件时：
+
+1. 启动软件，分别点击“浏览”选择模板和 Excel 文件。
 2. 确认工作表、标题行、模板列，以及 **Excel 列 → PPT 占位符**映射。
 3. 点击“全选”或逐行勾选需要生成的数据行，再点击“生成 PPT”。
 
 ![软件实际界面：已加载日报示例，数据行尚未勾选](docs/images/app-interface.png)
 
-上图为 Windows 实际界面，各区域说明见[界面说明](docs/使用培训.md#界面说明)。
+上图为 Windows 界面示例。各区域说明见[使用指南](docs/使用培训.md#界面说明)。
 
 生成文件保存在 **Excel 所在目录**，名称为 `output_YYYYMMDD_HHMMSS.pptx`。“完成”对话框和底部状态栏会显示保存路径。
 

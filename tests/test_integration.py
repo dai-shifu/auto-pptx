@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from openpyxl import load_workbook
 from pptx import Presentation
 
 from src.generator import generate
@@ -34,6 +35,33 @@ def test_end_to_end(tmp_path, generated_fixtures: Path):
     table, = (shape.table for shape in result.slides[2].shapes if shape.has_table)
     assert table.cell(1, 1).text == "500万"
     assert table.cell(2, 1).text == "120万"
+
+
+def test_selected_rows_with_same_project_id_generate_separate_slides(tmp_path, generated_fixtures: Path):
+    excel = generated_fixtures / "test_data.xlsx"
+    workbook = load_workbook(excel)
+    sheet = workbook.create_sheet("重复编号")
+    sheet.append(("模板", "标题", "项目编号"))
+    sheet.append(("cover", "第一份报告", "DEMO-001"))
+    sheet.append(("cover", "第二份报告", "DEMO-001"))
+    workbook.save(excel)
+    workbook.close()
+
+    output = tmp_path / "output.pptx"
+    generate(
+        prs=load_template(generated_fixtures / "template.pptx"),
+        excel_path=excel,
+        sheet_name=sheet.title,
+        selected_rows=[2, 3],
+        output_path=output,
+        template_column="模板",
+        mapping={"标题": "标题", "项目编号": "作者"},
+    )
+
+    first, second = Presentation(str(output)).slides
+    for slide, title in ((first, "第一份报告"), (second, "第二份报告")):
+        texts = {shape.text_frame.text for shape in slide.shapes if shape.has_text_frame}
+        assert {title, "作者: DEMO-001"} <= texts
 
 
 def test_end_to_end_empty(tmp_path, generated_fixtures: Path):

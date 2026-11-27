@@ -9,29 +9,16 @@ TPL_RE = re.compile(r"\{\{tpl::([\w\-一-鿿]+)\}\}")
 
 
 def build_template_index(prs: Presentation) -> dict[str, Slide]:
-    """扫描所有 Slide，建立 {模板名称: Slide} 索引。
-
-    通过查找 {{tpl::名称}} 标识占位符识别模板页身份。
-
-    Args:
-        prs: 已加载的 Presentation 对象
-
-    Returns:
-        模板名称到 Slide 对象的映射
-    """
+    """通过 {{tpl::名称}} 标识建立 {模板名称: Slide} 索引。"""
     index: dict[str, Slide] = {}
-
     for slide in prs.slides:
-        tpl_name = _extract_tpl_name(slide)
-        if tpl_name is None:
+        name = _extract_tpl_name(slide)
+        if name is None:
             continue
-
-        if tpl_name in index:
-            print(f"警告: 模板标识 '{{{{tpl::{tpl_name}}}}}' 重复，使用第一个匹配的 Slide", file=sys.stderr)
+        if name in index:
+            print(f"警告: 模板标识 '{{{{tpl::{name}}}}}' 重复，使用第一个匹配的 Slide", file=sys.stderr)
             continue
-
-        index[tpl_name] = slide
-
+        index[name] = slide
     return index
 
 

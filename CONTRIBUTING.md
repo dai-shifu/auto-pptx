@@ -4,7 +4,7 @@
 
 ## 准备环境
 
-macOS、Linux 和 Windows 开发者均直接从源码运行和测试，需要 Python 3.11+、uv 和可用的 tkinter。CI 和 Windows 发布构建使用 Python 3.12。Windows 命令在 Git Bash 中执行。正式 Windows exe 由 Windows CI 构建，也可在 Windows 上本地试打包。日常开发无需安装 Visual Studio 或 Build Tools。
+macOS、Linux 和 Windows 均可从源码运行。需要 Python 3.11+、uv 和可用的 tkinter。CI 使用 Python 3.12；Windows 命令示例使用 Git Bash。源码开发不需要 Windows 打包工具链。
 
 克隆自己的 fork 后，在项目根目录运行：
 
@@ -13,44 +13,29 @@ uv sync --locked --group dev
 uv run run.py
 ```
 
-首次启动会创建空的 `config.toml`，请勿提交。Linux 需安装 Tk；无桌面环境运行 GUI 测试还需 Xvfb 和 xauth。
+首次启动会尝试在项目根目录创建空的 `config.toml`，请勿提交。Linux 需安装 Tk；无桌面环境运行 GUI 测试还需 Xvfb 和 xauth。
 
 ## 修改与测试
 
 保持改动集中。沿用四空格缩进、公开接口类型注解和 `pathlib.Path`。避免顺带重构或调整无关格式。
 
-先运行相关测试，提交前运行完整测试：
+开发时先运行相关测试，例如：
 
 ```bash
 uv run --group dev pytest tests/test_generator.py
-uv run --group dev pytest
 ```
 
-Linux 无桌面环境时运行：
+提交前运行全量测试。使用 `--require-gui`，让 Tk 不可用时的必要 GUI 测试报错而不是跳过：
 
 ```bash
-xvfb-run -a uv run --group dev pytest
+uv run --group dev pytest --require-gui
 ```
 
-GUI 测试跳过不代表验证通过。请在 PR 中说明未验证的部分。模块与构建方法见[开发文档](docs/开发.md)。
-
-## 文档写作
-
-所有项目文档参考 Scott Adams 的《The Day You Became A Better Writer》：
-
-- 先写结论、用途或操作，再补必要背景。
-- 使用短句和常用词。一句话说明一件事。
-- 用主动表达，写清谁做什么。删除空话、重复说明和多余修饰。
-- 步骤按操作顺序写；并列信息用列表，需要比较时用表格。
-- 保留必要条件、例外、命令和示例。规格保留约束强度，历史记录保留当时的决策和验证结果。
-
-此约定适用于中英文 README、指南、示例、协作说明，以及 OpenSpec 提案、设计、规格、任务和验证记录。
-
-新写或因需求修改文档时遵循此约定。不为统一文风单独改写已有规格或历史记录。
+Linux 无桌面时，在命令前加 `xvfb-run -a`；Windows 加 `--capture=sys`。GUI 用例跳过不算通过，请在 PR 中注明未验证的部分。模块与构建方法见[开发文档](docs/开发.md)。
 
 ## 规格与测试资源
 
-[现行规格](openspec/specs/)记录功能约束，[活动变更](openspec/changes/)记录提案、设计和任务，`changes/archive/` 保留历史决策。历史记录与当前行为不一致时，核对现行规格、代码和活动变更。
+[现行规格](openspec/specs/)记录功能约束，[活动变更](openspec/changes/)记录提案、设计和任务，[归档](openspec/changes/archive/)保留历史决策。确认当前行为时，对照代码和已实现的活动变更。
 
 较大的行为变更先讨论范围，并同步更新提案、设计、规格和任务。简单修正可直接提交 PR，说明影响和验证结果。
 

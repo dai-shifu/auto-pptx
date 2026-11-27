@@ -1,6 +1,7 @@
 """tkinter GUI：单 Excel + 可视化行选择工作流。"""
 import sys
 import tkinter as tk
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -22,6 +23,16 @@ from .gui_layout import (
 from .gui_tooltip import TreeviewTooltip
 from .generator import generate
 from .pptx_engine import load_template
+
+
+@dataclass(frozen=True)
+class _GenerationSettings:
+    sheet_name: str
+    header_row: int
+    template_column: str | None
+    mapping: dict[str, str]
+    selected_rows: tuple[int, ...]
+
 
 def _get_config_path() -> Path:
     """返回 config.toml 路径。exe 同目录（打包）或项目根目录（开发），均由 sys.argv[0] 自动定位。"""
@@ -62,7 +73,7 @@ class App:
 
         ttk.Label(frm, text="模板 PPT:").grid(row=0, column=0, sticky="w")
         self.tpl_var = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.tpl_var, width=50).grid(
+        ttk.Entry(frm, textvariable=self.tpl_var, width=50, state="readonly").grid(
             row=0, column=1, padx=5, sticky="ew",
         )
         ttk.Button(frm, text="浏览", command=self._browse_tpl).grid(row=0, column=2)
@@ -70,7 +81,7 @@ class App:
         # ── Excel 文件 ──
         ttk.Label(frm, text="Excel 文件:").grid(row=1, column=0, sticky="w", pady=(5, 0))
         self.excel_var = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.excel_var, width=50).grid(
+        ttk.Entry(frm, textvariable=self.excel_var, width=50, state="readonly").grid(
             row=1, column=1, padx=5, pady=(5, 0), sticky="ew",
         )
         ttk.Button(frm, text="浏览", command=self._browse_excel).grid(row=1, column=2, pady=(5, 0))
@@ -158,6 +169,7 @@ class App:
         )
 
         # 内部状态
+        self._loaded_sheet: tuple[str, str, int] | None = None
         self._headers: list[str] = []
         self._rows: list[list[str]] = []
         self._checked: set[int] = set()
@@ -167,8 +179,6 @@ class App:
         self._template_cache_key: tuple[str, int, int] | None = None
         self._template_metadata: TemplateMetadata | None = None
 
-        # 来源标记：区分 config.toml 加载值和 auto_detect 临时值
-        self._mapping_from_config: bool = False
         self._preferred_template_column: str | None = None
 
         # 标题行：可通过 Spinbox 或 auto-detect 设置
@@ -198,23 +208,28 @@ class App:
             wb = load_workbook(excel_path, read_only=True)
             sheets = wb.sheetnames
             wb.close()
-            self.sheet_combo["values"] = sheets
-            if sheets:
-                self.sheet_var.set(sheets[0])
-                self._refresh_all()
-            else:
-                self._set_template_columns([])
+            if not sheets:
+                raise ValueError("Excel 中没有可读取的工作表")
         except Exception as e:
-            self._set_template_columns([])
+            self.sheet_combo["values"] = ()
+            self.sheet_var.set("")
+            self._clear_sheet_preview()
             self.status_var.set(f"读取 Sheet 失败: {e}")
+            return
+
+        self.sheet_combo["values"] = sheets
+        self.sheet_var.set(sheets[0])
+        self._refresh_all()
 
     def _on_sheet_change(self, _event=None):
         self._refresh_all()
 
     def _on_tcol_change(self, _event=None):
-        # 模板列切换时重建 Treeview（关键列可能变），保留勾选
-        self._preferred_template_column = self.tcol_var.get() or None
-        self._rebuild_treeview(preserve_checks=True)
+        column = self.tcol_var.get()
+        self._preferred_template_column = column or None
+        visible_columns = ("#", *(name for _, name in _preview_columns(self._headers, column)))
+        if self.tree["columns"] != visible_columns:
+            self._rebuild_treeview()
 
     def _on_header_row_change(self):
         self._header_row = self.hrow_var.get()
@@ -229,51 +244,63 @@ class App:
         preferred = self._preferred_template_column
         self.tcol_var.set(preferred if preferred in columns else "")
 
+    def _clear_sheet_preview(self) -> None:
+        self._loaded_sheet = None
+        self._headers.clear()
+        self._rows.clear()
+        self._checked.clear()
+        self._set_template_columns([])
+        self._auto_mapping = {}
+        self._placeholders = []
+        self._rebuild_treeview()
+        self._rebuild_mapping()
+
     def _refresh_all(self):
         """Sheet 切换或 PPT/Excel 变化时刷新 Treeview 和映射。"""
         excel_path = self.excel_var.get()
         sheet_name = self.sheet_var.get()
-        tpl_path = self.tpl_var.get()
-
         if not excel_path or not sheet_name:
-            self._set_template_columns([])
+            self._clear_sheet_preview()
             return
 
         try:
-            # 自动检测标题行（仅在未由 config 指定时）
-            if not self._hrow_from_config and tpl_path:
-                self._detect_header_row(excel_path, sheet_name, tpl_path)
-
-            self._headers, self._rows = read_sheet_rows(
-                excel_path, sheet_name, header_row=self._header_row,
-            )
+            header = self._header_row
+            if not self._hrow_from_config and self.tpl_var.get():
+                header = self._detect_header_row
+            headers, rows = read_sheet_rows(excel_path, sheet_name, header_row=header)
+            loaded_sheet = (excel_path, sheet_name, self._header_row)
+            if loaded_sheet != self._loaded_sheet or headers != self._headers or rows != self._rows:
+                self._checked.clear()
+            self._loaded_sheet = loaded_sheet
+            self._headers, self._rows = headers, rows
             self._set_template_columns(self._headers)
-            if tpl_path:
-                self._auto_detect()
+            if rows:
+                self._update_selection_status()
+            else:
+                self.status_var.set("当前工作表无数据")
+            self._auto_detect()
             self._rebuild_treeview()
             self._rebuild_mapping()
         except Exception as e:
-            self._set_template_columns([])
+            self._clear_sheet_preview()
             self.status_var.set(f"加载数据失败: {e}")
 
-    def _detect_header_row(self, excel_path: str, sheet_name: str, tpl_path: str):
-        """扫描前 5 行，自动判定标题行（模板名交集占比最低的行）。"""
-        try:
-            temp_headers, temp_rows = read_sheet_rows(excel_path, sheet_name, header_row=1)
-            if not temp_rows:
-                return  # 只有标题行时无需检测
-            metadata = self._template_metadata_for(tpl_path)
-            tpl_names = set(metadata.template_names)
-            if tpl_names:
-                # 构建候选行：第 1 行 headers + 后续数据行（共最多 5 行）
-                detect_rows = [temp_headers] + temp_rows[:4]
-                self._header_row = detect_header_row(tpl_names, detect_rows)
-                self.hrow_var.set(self._header_row)
-        except Exception:
-            pass  # 检测失败，保持当前值
+    def _detect_header_row(self, candidates: list[list[str]]) -> int:
+        """根据前几行和模板标识选择标题行；不能检测时保留当前值。"""
+        if len(candidates) > 1:
+            try:
+                metadata = self._template_metadata_for(self.tpl_var.get())
+                if metadata.template_names:
+                    self._header_row = detect_header_row(set(metadata.template_names), candidates)
+                    self.hrow_var.set(self._header_row)
+            except Exception:
+                pass
+        return self._header_row
 
     def _auto_detect(self):
         """自动检测模板列和映射。"""
+        self._auto_mapping = {}
+        self._placeholders = []
         tpl_path = self.tpl_var.get()
         if not tpl_path or not self._headers:
             return
@@ -342,13 +369,8 @@ class App:
             self.tree.column(column, width=column_width, minwidth=0, stretch=False)
         self.tree.xview_moveto(0)
 
-    def _rebuild_treeview(self, preserve_checks: bool = False):
-        """用当前 headers + rows 重建 Treeview。
-
-        preserve_checks=True 时保留现有勾选（仅更新列结构），
-        否则清空勾选，默认为全不选。
-        展示前 5 列；模板列不在其中时追加到右侧。
-        """
+    def _rebuild_treeview(self):
+        """按当前数据、预览列和勾选重建 Treeview。"""
         self._hide_tooltip()
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -364,12 +386,6 @@ class App:
             self.tree.column(h, width=120, minwidth=0, stretch=False)
         self._tree_width_key = None
 
-        max_row = len(self._rows) + self._header_row  # 最后一个数据行的 Excel 行号
-        min_data_row = self._header_row + 1
-        if preserve_checks:
-            self._checked = {r for r in self._checked if min_data_row <= r <= max_row}
-        else:
-            self._checked.clear()
         for row_idx, row in enumerate(self._rows):
             excel_row = row_idx + self._header_row + 1
             values = [self._checkbox_text(excel_row)] + [row[idx] for idx, _ in display_cols]
@@ -461,6 +477,20 @@ class App:
 
     # ── 生成 ──
 
+    def _current_settings(self) -> _GenerationSettings:
+        mapping: dict[str, str] = {}
+        for column, var in self.mapping_widgets:
+            value = var.get()
+            if value and value != "(不映射)":
+                mapping[column] = value
+        return _GenerationSettings(
+            self.sheet_var.get(),
+            self._header_row,
+            self.tcol_var.get() or None,
+            mapping,
+            tuple(sorted(self._checked)),
+        )
+
     def _generate(self):
         tpl_path = self.tpl_var.get()
         excel_path = self.excel_var.get()
@@ -479,37 +509,31 @@ class App:
             messagebox.showerror("错误", "请至少勾选一行数据")
             return
 
-        selected_rows = sorted(self._checked)
-        if not selected_rows:
-            messagebox.showerror("错误", "请至少勾选一行数据")
-            return
-
         try:
-            # 构建映射：excel_col → placeholder
-            mapping = {}
-            for excel_col, var in self.mapping_widgets:
-                val = var.get()
-                if val and val != "(不映射)":
-                    mapping[excel_col] = val
-
+            settings = self._current_settings()
+            if settings.template_column not in self._headers:
+                messagebox.showerror(
+                    "错误", "未确定模板列。请在「模板列」下拉框中选择用于匹配 PPT 模板的 Excel 列。",
+                )
+                return
             prs = load_template(tpl_path)
             output = Path(excel_path).parent / f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
             result = generate(
                 prs,
                 excel_path,
-                sheet_name,
-                selected_rows,
+                settings.sheet_name,
+                list(settings.selected_rows),
                 output,
-                template_column=self.tcol_var.get() or None,
-                mapping=mapping,
-                header_row=self._header_row,
+                template_column=settings.template_column,
+                mapping=settings.mapping,
+                header_row=settings.header_row,
             )
 
             # 保存 config.toml
             config = Config(
-                template_column=self.tcol_var.get(),
-                header_row=self._header_row,
-                mapping=mapping,
+                template_column=settings.template_column or "",
+                header_row=settings.header_row,
+                mapping=settings.mapping,
             )
             CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
             save_config(config, CONFIG_PATH)
@@ -531,10 +555,7 @@ class App:
             if not CONFIG_PATH.exists():
                 save_config(config, CONFIG_PATH)
             self._preferred_template_column = config.template_column or None
-            if config.mapping:
-                self._auto_mapping = config.mapping
-                self._explicit_mapping = dict(config.mapping)
-                self._mapping_from_config = True
+            self._explicit_mapping = dict(config.mapping)
             if config.header_row:
                 self._header_row = config.header_row
                 self.hrow_var.set(config.header_row)

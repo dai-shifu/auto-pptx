@@ -12,21 +12,21 @@ A desktop tool that generates a single PowerPoint presentation from selected Exc
 
 ![Actual output: DEMO-001 project progress from the protein expression and purification daily report](examples/bio-daily/previews/slide-02.png)
 
-[View the example and download templates (Chinese)](examples/bio-daily/README.md)
-
 ## Quick start
 
-Have the application ready, along with a `.pptx` template and its matching `.xlsx` file supplied by your maintainer. For a first try, use the [daily report example (Chinese)](examples/bio-daily/README.md).
+New to auto-pptx? Follow the [onboarding guide](docs/getting-started.md#english) to open the public daily report sample, select only **Excel row 2**, and generate one Daily Overview slide. The Windows release doesn't require source code or Python.
 
-1. Start the application and select the template and Excel file.
+When using your own `.pptx` template and matching `.xlsx` file:
+
+1. Start the application and click “浏览” (Browse) next to each file field to select the template and workbook.
 2. Confirm the worksheet, header row, template column, and **Excel column → PowerPoint placeholder** mappings.
-3. Select the rows to include and click “生成 PPT” (Generate PowerPoint).
+3. Click “全选” (Select all) or select individual rows, then click “生成 PPT” (Generate PowerPoint).
 
 ![Actual Windows interface with the daily report example loaded; no data rows selected](docs/images/app-interface.png)
 
-The screenshot shows the Chinese application interface on Windows. Click “全选” (Select all) or select individual rows before generating. See the [interface guide (Chinese)](docs/使用培训.md#界面说明) for a description of each area.
+The screenshot shows the Chinese Windows interface. See the [interface guide (Chinese)](docs/使用培训.md#界面说明).
 
-The output is saved **in the same folder as the Excel file**, named `output_YYYYMMDD_HHMMSS.pptx`. The “完成” (Complete) dialog and bottom status bar show the save path. The application interface is currently in Chinese.
+The output is saved **in the same folder as the Excel file**, named `output_YYYYMMDD_HHMMSS.pptx`. The “完成” (Complete) dialog and bottom status bar show the save path.
 
 ## Documentation and contributing
 

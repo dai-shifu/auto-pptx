@@ -54,6 +54,9 @@ class TestDetectTemplateColumn:
         result = detect_template_column(headers, rows, tpl_names)
         assert result == "类型"  # 2/3 match vs 0/3
 
+    def test_equal_scores_keep_first_column(self):
+        assert detect_template_column(["模板", "备选"], [["cover", "summary"]], {"cover", "summary"}) == "模板"
+
     def test_slash_separated_template_names(self):
         headers = ["模板", "备注"]
         rows = [[" Ni-NTA / GST / ", "ordinary"]]

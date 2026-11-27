@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from pptx import Presentation
 
+from .pptx_engine import PLACEHOLDER_RE, iter_replaceable_text_frames
 from .template_matching import build_template_index
 
 
@@ -243,9 +244,7 @@ def detect_from_metadata(
     metadata: TemplateMetadata, headers: list[str], rows: list[list[str]]
 ) -> DetectionResult:
     """Run Excel-dependent detection against reusable template metadata."""
-    template_col = detect_template_column(
-        headers, rows, set(metadata.template_names)
-    )
+    template_col = detect_template_column(headers, rows, set(metadata.template_names))
     suggested = suggest_mapping_detailed(headers, list(metadata.placeholders))
     mapping = {
         excel_col: placeholder
@@ -265,28 +264,14 @@ def detect_and_suggest(
 
 def collect_placeholders(prs: Presentation) -> list[str]:
     """Collect unique placeholders in first-seen template order."""
-    from .pptx_engine import PLACEHOLDER_RE
-
-    names: list[str] = []
-    seen: set[str] = set()
-
-    def collect_text(text: str) -> None:
-        for match in PLACEHOLDER_RE.finditer(text):
-            name = match.group(1)
-            if name not in seen:
-                seen.add(name)
-                names.append(name)
-
+    names: dict[str, None] = {}
     for slide in prs.slides:
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                for paragraph in shape.text_frame.paragraphs:
-                    collect_text("".join(run.text for run in paragraph.runs))
-            if shape.has_table:
-                for cell in shape.table.iter_cells():
-                    for paragraph in cell.text_frame.paragraphs:
-                        collect_text("".join(run.text for run in paragraph.runs))
-    return names
+        for frame in iter_replaceable_text_frames(slide):
+            for paragraph in frame.paragraphs:
+                text = "".join(run.text for run in paragraph.runs)
+                for match in PLACEHOLDER_RE.finditer(text):
+                    names[match.group(1)] = None
+    return list(names)
 
 
 def detect_header_row(tpl_names: set[str], rows: list[list[str]]) -> int:
