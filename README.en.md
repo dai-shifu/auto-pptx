@@ -14,7 +14,7 @@ A desktop tool that generates a single PowerPoint presentation from selected Exc
 
 ## Quick start
 
-New to auto-pptx? Follow the [onboarding guide](docs/ai-onboarding.md#english) to open the public daily report sample, select only **Excel row 2**, and generate one Daily Overview slide. You don't need AI, source code, or Python.
+New to auto-pptx? Follow the [onboarding guide](docs/getting-started.md#english) to open the public daily report sample, select only **Excel row 2**, and generate one Daily Overview slide. The Windows release doesn't require source code or Python.
 
 When using your own `.pptx` template and matching `.xlsx` file:
 
@@ -24,13 +24,9 @@ When using your own `.pptx` template and matching `.xlsx` file:
 
 ![Actual Windows interface with the daily report example loaded; no data rows selected](docs/images/app-interface.png)
 
-The screenshot shows an older Chinese Windows interface without the “检查当前设置” (Check current settings) button. See the [interface guide (Chinese)](docs/使用培训.md#界面说明).
+The screenshot shows the Chinese Windows interface. See the [interface guide (Chinese)](docs/使用培训.md#界面说明).
 
 The output is saved **in the same folder as the Excel file**, named `output_YYYYMMDD_HHMMSS.pptx`. The “完成” (Complete) dialog and bottom status bar show the save path.
-
-## Troubleshoot with AI
-
-Checks are optional. If your version has “检查当前设置” (Check current settings), use the [onboarding guide](docs/ai-onboarding.md#check-your-own-files-with-ai) to share a reviewed summary without uploading the original files.
 
 ## Documentation and contributing
 

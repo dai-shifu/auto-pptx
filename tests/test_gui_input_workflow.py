@@ -121,7 +121,8 @@ def test_editing_mapping_and_swapping_template_preserve_actual_excel_row(app, mo
     _browse(app, monkeypatch, app.tpl_var, replacement)
     assert app.tpl_var.get() == str(replacement)
     assert _visible_checks(app) == app._current_settings().selected_rows == (4,)
-    assert "标题" in app._current_settings().explicitly_unmapped
+    assert app._explicit_mapping["标题"] is None
+    assert "标题" not in app._current_settings().mapping
 
 
 @pytest.mark.parametrize("change", ["excel", "sheet", "header"])
@@ -186,15 +187,17 @@ def test_invalid_template_column_prevents_generation_and_config_save(app, monkey
     assert not list(Path(app.excel_var.get()).parent.glob("output_*.pptx"))
 
 
-def test_automatically_selected_template_column_generates_without_checking(app, monkeypatch):
+def test_automatically_selected_template_column_generates_directly(app):
+    actions = [
+        widget for widget in app.generate_btn.master.winfo_children()
+        if isinstance(widget, ttk.Button)
+    ]
+    assert actions == [app.generate_btn]
     assert app.tcol_combo.get() == "模板"
     _check_row(app, 3)
-    check_inputs = Mock()
-    monkeypatch.setattr(gui, "check_inputs", check_inputs)
 
     app.generate_btn.invoke()
 
-    check_inputs.assert_not_called()
     gui.messagebox.showerror.assert_not_called()
     gui.messagebox.showinfo.assert_called_once()
     (output,) = Path(app.excel_var.get()).parent.glob("output_*.pptx")

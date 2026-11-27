@@ -1,6 +1,7 @@
 """tkinter GUI：单 Excel + 可视化行选择工作流。"""
 import sys
 import tkinter as tk
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -13,7 +14,6 @@ from .auto_detect import (
 )
 from .config import Config, load_config, save_config
 from .excel_reader import read_sheet_rows
-from .gui_check import CheckDialog
 from .gui_layout import (
     MappingPane,
     Workspace,
@@ -22,8 +22,17 @@ from .gui_layout import (
 )
 from .gui_tooltip import TreeviewTooltip
 from .generator import generate
-from .input_check import CheckSettings, check_inputs
 from .pptx_engine import load_template
+
+
+@dataclass(frozen=True)
+class _GenerationSettings:
+    sheet_name: str
+    header_row: int
+    template_column: str | None
+    mapping: dict[str, str]
+    selected_rows: tuple[int, ...]
+
 
 def _get_config_path() -> Path:
     """返回 config.toml 路径。exe 同目录（打包）或项目根目录（开发），均由 sys.argv[0] 自动定位。"""
@@ -151,16 +160,13 @@ class App:
         # ── 生成按钮 + 状态 ──
         btn_frm = ttk.Frame(root, padding=10)
         btn_frm.grid(row=3, column=0, sticky="ew")
-        btn_frm.columnconfigure(2, weight=1)
+        btn_frm.columnconfigure(1, weight=1)
         self.generate_btn = ttk.Button(btn_frm, text="生成 PPT", command=self._generate)
         self.generate_btn.grid(row=0, column=0, sticky="w")
-        self.check_btn = ttk.Button(btn_frm, text="检查当前设置", command=self._check_current)
-        self.check_btn.grid(row=0, column=1, sticky="w", padx=(8, 0))
         self.status_var = tk.StringVar(value="就绪")
         ttk.Label(btn_frm, textvariable=self.status_var, width=1).grid(
-            row=0, column=2, sticky="ew", padx=10,
+            row=0, column=1, sticky="ew", padx=10,
         )
-        self._check_window: CheckDialog | None = None
 
         # 内部状态
         self._loaded_sheet: tuple[str, str, int] | None = None
@@ -469,31 +475,21 @@ class App:
         """记录用户显式选择，使后续数据刷新不会覆盖它。"""
         self._explicit_mapping[excel_col] = None if placeholder == "(不映射)" else placeholder
 
-    # ── 检查与生成 ──
+    # ── 生成 ──
 
-    def _current_settings(self) -> CheckSettings:
+    def _current_settings(self) -> _GenerationSettings:
         mapping: dict[str, str] = {}
-        explicitly_unmapped: list[str] = []
         for column, var in self.mapping_widgets:
             value = var.get()
             if value and value != "(不映射)":
                 mapping[column] = value
-            elif column in self._explicit_mapping and self._explicit_mapping[column] is None:
-                explicitly_unmapped.append(column)
-        return CheckSettings(
+        return _GenerationSettings(
             self.sheet_var.get(),
             self._header_row,
             self.tcol_var.get() or None,
             mapping,
             tuple(sorted(self._checked)),
-            tuple(explicitly_unmapped),
         )
-
-    def _check_current(self) -> None:
-        if self._check_window is not None and self._check_window.winfo_exists():
-            self._check_window.destroy()
-        report = check_inputs(self.tpl_var.get(), self.excel_var.get(), self._current_settings())
-        self._check_window = CheckDialog(self.root, report)
 
     def _generate(self):
         tpl_path = self.tpl_var.get()

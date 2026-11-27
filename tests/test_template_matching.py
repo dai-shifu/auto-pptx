@@ -21,3 +21,13 @@ def test_template_index_no_tpl():
     prs.slides.add_slide(prs.slide_layouts[6])
     index = build_template_index(prs)
     assert len(index) == 0
+
+
+def test_duplicate_template_id_keeps_first_slide(generated_fixtures, capsys):
+    prs = load_template(generated_fixtures / "template.pptx")
+    first = prs.slides[0]
+    duplicate = prs.slides.add_slide(prs.slide_layouts[6])
+    duplicate.shapes.add_textbox(0, 0, 1000000, 1000000).text = "{{tpl::cover}}"
+
+    assert build_template_index(prs)["cover"] == first
+    assert "重复，使用第一个" in capsys.readouterr().err

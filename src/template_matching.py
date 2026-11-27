@@ -1,7 +1,5 @@
 import re
 import sys
-from collections.abc import Iterator
-from dataclasses import dataclass
 
 from pptx import Presentation
 from pptx.slide import Slide
@@ -10,35 +8,17 @@ from pptx.slide import Slide
 TPL_RE = re.compile(r"\{\{tpl::([\w\-一-鿿]+)\}\}")
 
 
-@dataclass(frozen=True)
-class TemplatePage:
-    number: int
-    name: str | None
-    slide: Slide
-    usable: bool
-
-
-def iter_template_pages(prs: Presentation) -> Iterator[TemplatePage]:
-    """Scan source pages in order and mark the first occurrence of each name."""
-    seen: set[str] = set()
-    for number, slide in enumerate(prs.slides, start=1):
-        name = _extract_tpl_name(slide)
-        usable = name is not None and name not in seen
-        if name is not None:
-            seen.add(name)
-        yield TemplatePage(number, name, slide, usable)
-
-
 def build_template_index(prs: Presentation) -> dict[str, Slide]:
     """通过 {{tpl::名称}} 标识建立 {模板名称: Slide} 索引。"""
     index: dict[str, Slide] = {}
-    for page in iter_template_pages(prs):
-        if page.name is None:
+    for slide in prs.slides:
+        name = _extract_tpl_name(slide)
+        if name is None:
             continue
-        if not page.usable:
-            print(f"警告: 模板标识 '{{{{tpl::{page.name}}}}}' 重复，使用第一个匹配的 Slide", file=sys.stderr)
+        if name in index:
+            print(f"警告: 模板标识 '{{{{tpl::{name}}}}}' 重复，使用第一个匹配的 Slide", file=sys.stderr)
             continue
-        index[page.name] = page.slide
+        index[name] = slide
     return index
 
 
