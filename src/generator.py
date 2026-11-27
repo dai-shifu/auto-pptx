@@ -13,6 +13,7 @@ from .auto_detect import (
     detect_and_suggest_detailed,
     tokenize_template_value,
 )
+from .excel_reader import cell_text, generation_headers
 from .pptx_engine import clone_slide, prune_slides, replace_in_slide
 from .template_matching import build_template_index
 
@@ -57,12 +58,8 @@ def generate(
         ws = wb[sheet_name]
 
         # 2. 读取标题行
-        headers = [
-            str(ws.cell(row=header_row, column=c).value).strip() if ws.cell(row=header_row, column=c).value else ""
-            for c in range(1, ws.max_column + 1)
-        ]
-
-        _validate_headers(headers)
+        headers = generation_headers(ws, header_row)
+        validate_headers(headers)
 
         # 3. 建立模板索引
         tpl_index = build_template_index(prs)
@@ -94,7 +91,7 @@ def generate(
         if template_column not in headers:
             raise ValueError(f"模板列 '{template_column}' 不在 Excel 标题行中，可用列: {headers}")
 
-        _validate_mapping(headers, mapping)
+        validate_mapping(headers, mapping)
 
         tpl_col = headers.index(template_column)
 
@@ -114,7 +111,7 @@ def generate(
 
             # 6a. 读取模板列值
             filler_cell = ws.cell(row=row_idx, column=tpl_col + 1)
-            filler_raw = str(filler_cell.value).strip() if filler_cell.value is not None else ""
+            filler_raw = cell_text(filler_cell.value).strip()
             if not filler_raw:
                 print(f"警告: 行 {row_idx} 模板列为空，跳过", file=sys.stderr)
                 skipped_rows.append(row_idx)
@@ -131,7 +128,7 @@ def generate(
             for i, header in enumerate(headers):
                 if header:
                     cell_val = ws.cell(row=row_idx, column=i + 1).value
-                    row_data[header] = str(cell_val) if cell_val is not None else ""
+                    row_data[header] = cell_text(cell_val)
 
             # 6d. 按 mapping 转换占位符
             mapped_data: dict[str, str] = {}
@@ -186,7 +183,7 @@ def generate(
         wb.close()
 
 
-def _validate_headers(headers: list[str]) -> None:
+def validate_headers(headers: list[str]) -> None:
     duplicates = sorted(
         header for header, count in Counter(h for h in headers if h).items() if count > 1
     )
@@ -194,7 +191,7 @@ def _validate_headers(headers: list[str]) -> None:
         raise ValueError(f"Excel 标题行包含重复列名: {duplicates}")
 
 
-def _validate_mapping(headers: list[str], mapping: dict[str, str]) -> None:
+def validate_mapping(headers: list[str], mapping: dict[str, str]) -> None:
     missing = sorted(column for column in mapping if column not in headers)
     if missing:
         raise ValueError(f"映射引用了不存在的 Excel 列: {missing}")
@@ -203,7 +200,11 @@ def _validate_mapping(headers: list[str], mapping: dict[str, str]) -> None:
         target for target, count in Counter(mapping.values()).items() if target and count > 1
     )
     if duplicate_targets:
-        raise ValueError(f"多个 Excel 列映射到同一占位符: {duplicate_targets}")
+        conflicts = "；".join(
+            f"{target}: {', '.join(column for column, value in mapping.items() if value == target)}"
+            for target in duplicate_targets
+        )
+        raise ValueError(f"多个 Excel 列映射到同一占位符: {conflicts}")
 
 
 def _build_warnings(

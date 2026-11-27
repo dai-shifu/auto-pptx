@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
 from pptx import Presentation
+from pptx.slide import Slide
 
+from .pptx_engine import PLACEHOLDER_RE, iter_replaceable_text_frames
 from .template_matching import build_template_index
 
 
@@ -23,12 +25,20 @@ class MappingSuggestionResult:
 
 
 @dataclass(frozen=True)
+class TemplateColumnCandidate:
+    header: str
+    matches: int
+    token_count: int
+
+
+@dataclass(frozen=True)
 class DetectionResult:
     """Detailed result for template-column and placeholder detection."""
 
     template_column: str | None
     mapping: dict[str, str]
     conflicts: tuple[MappingConflict, ...]
+    template_candidates: tuple[TemplateColumnCandidate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -62,22 +72,24 @@ def _template_column_scores(
     return scores
 
 
+def _best_template_columns(
+    headers: list[str], rows: list[list[str]], tpl_names: set[str]
+) -> tuple[TemplateColumnCandidate, ...]:
+    scores = _template_column_scores(headers, rows, tpl_names)
+    best_score = max(((ratio, matches) for ratio, matches, _ in scores), default=(0.0, 0))
+    return tuple(
+        TemplateColumnCandidate(header, matches, total)
+        for header, (ratio, matches, total) in zip(headers, scores)
+        if matches and (ratio, matches) == best_score
+    )
+
+
 def detect_template_column(
     headers: list[str], rows: list[list[str]], tpl_names: set[str]
 ) -> str | None:
-    """Detect the column whose slash-delimited values best match templates."""
-    best_col: str | None = None
-    best_score = (0.0, 0)
-
-    for header, (ratio, matches, _total) in zip(
-        headers, _template_column_scores(headers, rows, tpl_names)
-    ):
-        score = (ratio, matches)
-        if matches and score > best_score:
-            best_score = score
-            best_col = header
-
-    return best_col
+    """Detect the first column with the best score."""
+    candidates = _best_template_columns(headers, rows, tpl_names)
+    return candidates[0].header if candidates else None
 
 
 def suggest_mapping_detailed(
@@ -243,16 +255,15 @@ def detect_from_metadata(
     metadata: TemplateMetadata, headers: list[str], rows: list[list[str]]
 ) -> DetectionResult:
     """Run Excel-dependent detection against reusable template metadata."""
-    template_col = detect_template_column(
-        headers, rows, set(metadata.template_names)
-    )
+    candidates = _best_template_columns(headers, rows, set(metadata.template_names))
+    template_col = candidates[0].header if candidates else None
     suggested = suggest_mapping_detailed(headers, list(metadata.placeholders))
     mapping = {
         excel_col: placeholder
         for placeholder, excel_col in suggested.mapping.items()
         if excel_col is not None
     }
-    return DetectionResult(template_col, mapping, suggested.conflicts)
+    return DetectionResult(template_col, mapping, suggested.conflicts, candidates)
 
 
 def detect_and_suggest(
@@ -263,30 +274,22 @@ def detect_and_suggest(
     return result.template_column, result.mapping
 
 
+def collect_slide_placeholders(slide: Slide) -> list[str]:
+    """Collect unique placeholders that can be replaced on this slide."""
+    names: dict[str, None] = {}
+    for frame in iter_replaceable_text_frames(slide):
+        for paragraph in frame.paragraphs:
+            text = "".join(run.text for run in paragraph.runs)
+            for match in PLACEHOLDER_RE.finditer(text):
+                names[match.group(1)] = None
+    return list(names)
+
+
 def collect_placeholders(prs: Presentation) -> list[str]:
     """Collect unique placeholders in first-seen template order."""
-    from .pptx_engine import PLACEHOLDER_RE
-
-    names: list[str] = []
-    seen: set[str] = set()
-
-    def collect_text(text: str) -> None:
-        for match in PLACEHOLDER_RE.finditer(text):
-            name = match.group(1)
-            if name not in seen:
-                seen.add(name)
-                names.append(name)
-
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                for paragraph in shape.text_frame.paragraphs:
-                    collect_text("".join(run.text for run in paragraph.runs))
-            if shape.has_table:
-                for cell in shape.table.iter_cells():
-                    for paragraph in cell.text_frame.paragraphs:
-                        collect_text("".join(run.text for run in paragraph.runs))
-    return names
+    return list(dict.fromkeys(
+        name for slide in prs.slides for name in collect_slide_placeholders(slide)
+    ))
 
 
 def detect_header_row(tpl_names: set[str], rows: list[list[str]]) -> int:

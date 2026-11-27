@@ -1,11 +1,13 @@
 import copy
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from lxml import etree
 from pptx import Presentation
 from pptx.opc.constants import RELATIONSHIP_TYPE as RT
 from pptx.slide import Slide
+from pptx.text.text import TextFrame
 
 # 匹配 {{xxx}} 占位符，不匹配 {{tpl::xxx}}
 PLACEHOLDER_RE = re.compile(r"\{\{(?!tpl::)(.+?)\}\}")
@@ -103,16 +105,20 @@ def _remove_skipped_refs(element: etree._Element, skipped_rids: set[str]) -> Non
             parent.remove(el)
 
 
-def replace_in_slide(slide: Slide, data: dict[str, str]) -> None:
-    """替换单个 Slide 中的所有占位符（文本框 + 表格单元格）。"""
+def iter_replaceable_text_frames(slide: Slide) -> Iterator[TextFrame]:
+    """Yield the text frames this engine supports, in slide order."""
     for shape in slide.shapes:
-        # 文本框
         if shape.has_text_frame:
-            _replace_in_text_frame(shape.text_frame, data)
-        # 表格
+            yield shape.text_frame
         if shape.has_table:
             for cell in shape.table.iter_cells():
-                _replace_in_text_frame(cell.text_frame, data)
+                yield cell.text_frame
+
+
+def replace_in_slide(slide: Slide, data: dict[str, str]) -> None:
+    """替换单个 Slide 中的所有占位符（文本框 + 表格单元格）。"""
+    for text_frame in iter_replaceable_text_frames(slide):
+        _replace_in_text_frame(text_frame, data)
 
 
 def _replace_in_text_frame(text_frame, data: dict[str, str]) -> None:

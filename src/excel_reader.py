@@ -5,6 +5,15 @@ from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 
+def generation_headers(ws: Worksheet, header_row: int) -> list[str]:
+    """Read headers using the generator's normalization rules."""
+    return [str(cell.value).strip() if cell.value else "" for cell in ws[header_row]]
+
+
+def cell_text(value: object) -> str:
+    return str(value) if value is not None else ""
+
+
 def read_excel(path: str | Path, mapping: dict[str, str], template_column: str = "") -> list[dict[str, str]]:
     """读取 Excel 文件，返回结构化行数据。
 

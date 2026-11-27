@@ -14,7 +14,9 @@
 
 ## 快速开始
 
-准备软件、维护人员提供的 `.pptx` 模板和配套 `.xlsx` 文件。首次试用可[查看日报示例并下载模板](examples/bio-daily/README.md)。
+第一次使用？跟着[入门指南](docs/ai-onboarding.md)打开公开日报样例，只勾选 **Excel 第 2 行**，生成一页「日报总览」。无需 AI、源码或 Python。
+
+使用自己的配套 `.pptx` 模板和 `.xlsx` 文件时：
 
 1. 启动软件，选择模板和 Excel 文件。
 2. 确认工作表、标题行、模板列，以及 **Excel 列 → PPT 占位符**映射。
@@ -25,6 +27,10 @@
 上图为 Windows 实际界面，各区域说明见[界面说明](docs/使用培训.md#界面说明)。
 
 生成文件保存在 **Excel 所在目录**，名称为 `output_YYYYMMDD_HHMMSS.pptx`。“完成”对话框和底部状态栏会显示保存路径。
+
+## 借助 AI 排错
+
+在支持检查的版本中，先点「检查当前设置」，再预览并复制可分享的摘要。[入门指南](docs/ai-onboarding.md#借助-ai-检查自己的文件)提供可直接粘贴到聊天工具的提问示例，不用上传原始文件。已使用支持 Skills 的客户端？可选用 [`auto-pptx-onboarding` Skill](docs/ai-onboarding.md#获取可选-skill)。
 
 ## 文档与贡献
 

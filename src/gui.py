@@ -13,6 +13,7 @@ from .auto_detect import (
 )
 from .config import Config, load_config, save_config
 from .excel_reader import read_sheet_rows
+from .gui_check import CheckDialog
 from .gui_layout import (
     MappingPane,
     Workspace,
@@ -21,6 +22,7 @@ from .gui_layout import (
 )
 from .gui_tooltip import TreeviewTooltip
 from .generator import generate
+from .input_check import CheckSettings, check_inputs
 from .pptx_engine import load_template
 
 def _get_config_path() -> Path:
@@ -149,13 +151,16 @@ class App:
         # ── 生成按钮 + 状态 ──
         btn_frm = ttk.Frame(root, padding=10)
         btn_frm.grid(row=3, column=0, sticky="ew")
-        btn_frm.columnconfigure(1, weight=1)
+        btn_frm.columnconfigure(2, weight=1)
         self.generate_btn = ttk.Button(btn_frm, text="生成 PPT", command=self._generate)
         self.generate_btn.grid(row=0, column=0, sticky="w")
+        self.check_btn = ttk.Button(btn_frm, text="检查当前设置", command=self._check_current)
+        self.check_btn.grid(row=0, column=1, sticky="w", padx=(8, 0))
         self.status_var = tk.StringVar(value="就绪")
         ttk.Label(btn_frm, textvariable=self.status_var, width=1).grid(
-            row=0, column=1, sticky="ew", padx=10,
+            row=0, column=2, sticky="ew", padx=10,
         )
+        self._check_window: CheckDialog | None = None
 
         # 内部状态
         self._headers: list[str] = []
@@ -459,7 +464,31 @@ class App:
         """记录用户显式选择，使后续数据刷新不会覆盖它。"""
         self._explicit_mapping[excel_col] = None if placeholder == "(不映射)" else placeholder
 
-    # ── 生成 ──
+    # ── 检查与生成 ──
+
+    def _current_settings(self) -> CheckSettings:
+        mapping: dict[str, str] = {}
+        explicitly_unmapped: list[str] = []
+        for column, var in self.mapping_widgets:
+            value = var.get()
+            if value and value != "(不映射)":
+                mapping[column] = value
+            elif column in self._explicit_mapping and self._explicit_mapping[column] is None:
+                explicitly_unmapped.append(column)
+        return CheckSettings(
+            self.sheet_var.get(),
+            self._header_row,
+            self.tcol_var.get() or None,
+            mapping,
+            tuple(sorted(self._checked)),
+            tuple(explicitly_unmapped),
+        )
+
+    def _check_current(self) -> None:
+        if self._check_window is not None and self._check_window.winfo_exists():
+            self._check_window.destroy()
+        report = check_inputs(self.tpl_var.get(), self.excel_var.get(), self._current_settings())
+        self._check_window = CheckDialog(self.root, report)
 
     def _generate(self):
         tpl_path = self.tpl_var.get()
@@ -479,37 +508,26 @@ class App:
             messagebox.showerror("错误", "请至少勾选一行数据")
             return
 
-        selected_rows = sorted(self._checked)
-        if not selected_rows:
-            messagebox.showerror("错误", "请至少勾选一行数据")
-            return
-
         try:
-            # 构建映射：excel_col → placeholder
-            mapping = {}
-            for excel_col, var in self.mapping_widgets:
-                val = var.get()
-                if val and val != "(不映射)":
-                    mapping[excel_col] = val
-
+            settings = self._current_settings()
             prs = load_template(tpl_path)
             output = Path(excel_path).parent / f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
             result = generate(
                 prs,
                 excel_path,
-                sheet_name,
-                selected_rows,
+                settings.sheet_name,
+                list(settings.selected_rows),
                 output,
-                template_column=self.tcol_var.get() or None,
-                mapping=mapping,
-                header_row=self._header_row,
+                template_column=settings.template_column,
+                mapping=settings.mapping,
+                header_row=settings.header_row,
             )
 
             # 保存 config.toml
             config = Config(
-                template_column=self.tcol_var.get(),
-                header_row=self._header_row,
-                mapping=mapping,
+                template_column=settings.template_column or "",
+                header_row=settings.header_row,
+                mapping=settings.mapping,
             )
             CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
             save_config(config, CONFIG_PATH)
