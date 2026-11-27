@@ -18,19 +18,19 @@ New to auto-pptx? Follow the [onboarding guide](docs/ai-onboarding.md#english) t
 
 When using your own `.pptx` template and matching `.xlsx` file:
 
-1. Start the application and select the template and Excel file.
+1. Start the application and click “浏览” (Browse) next to each file field to select the template and workbook.
 2. Confirm the worksheet, header row, template column, and **Excel column → PowerPoint placeholder** mappings.
-3. Select the rows to include and click “生成 PPT” (Generate PowerPoint).
+3. Click “全选” (Select all) or select individual rows, then click “生成 PPT” (Generate PowerPoint).
 
 ![Actual Windows interface with the daily report example loaded; no data rows selected](docs/images/app-interface.png)
 
-The screenshot shows the Chinese application interface on Windows. Click “全选” (Select all) or select individual rows before generating. See the [interface guide (Chinese)](docs/使用培训.md#界面说明) for a description of each area.
+The screenshot shows an older Chinese Windows interface without the “检查当前设置” (Check current settings) button. See the [interface guide (Chinese)](docs/使用培训.md#界面说明).
 
-The output is saved **in the same folder as the Excel file**, named `output_YYYYMMDD_HHMMSS.pptx`. The “完成” (Complete) dialog and bottom status bar show the save path. The application interface is currently in Chinese.
+The output is saved **in the same folder as the Excel file**, named `output_YYYYMMDD_HHMMSS.pptx`. The “完成” (Complete) dialog and bottom status bar show the save path.
 
 ## Troubleshoot with AI
 
-In versions that support checks, click “检查当前设置” (Check current settings), then preview and copy a shareable summary. The [onboarding guide](docs/ai-onboarding.md#check-your-own-files-with-ai) has a prompt you can paste into a chat without uploading the original files. If your client supports Skills, you can use the optional [`auto-pptx-onboarding` Skill](docs/ai-onboarding.md#get-the-optional-skill).
+Checks are optional. If your version has “检查当前设置” (Check current settings), use the [onboarding guide](docs/ai-onboarding.md#check-your-own-files-with-ai) to share a reviewed summary without uploading the original files.
 
 ## Documentation and contributing
 

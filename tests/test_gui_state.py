@@ -2,9 +2,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from src import gui
+from src import excel_reader, gui
 from src.auto_detect import detect_header_row
-from tests.create_fixtures import DATA_HEADERS, DATA_SHEET, DETAIL_HEADERS, DETAIL_SHEET, build_test_xlsx
+from tests.create_fixtures import (
+    DATA_HEADERS, DATA_SHEET, DETAIL_HEADERS, DETAIL_ROWS, DETAIL_SHEET, build_test_xlsx,
+)
 
 
 class _Var:
@@ -18,13 +20,20 @@ class _Var:
         self.value = value
 
 
-def _app_for_detection() -> gui.App:
+def _app_for_detection(excel_path="", sheet="") -> gui.App:
     app = gui.App.__new__(gui.App)
     app.tpl_var = _Var("template.pptx")
     app.tcol_var = _Var()
     app.status_var = _Var()
+    app.hrow_var = _Var(1)
+    app.excel_var = _Var(excel_path)
+    app.sheet_var = _Var(sheet)
+    app.tcol_combo = {}
+    app.tree = {"columns": ("#",)}
+    app._loaded_sheet = None
     app._headers = ["模板", "标题"]
     app._rows = [["cover", "报告"]]
+    app._checked = set()
     app._auto_mapping = {}
     app._placeholders = []
     app._preferred_template_column = None
@@ -33,6 +42,8 @@ def _app_for_detection() -> gui.App:
     app._template_metadata_for = lambda _path: gui.TemplateMetadata(
         ("cover", "summary"), ("标题",)
     )
+    app._rebuild_treeview = lambda: None
+    app._rebuild_mapping = lambda: None
     return app
 
 
@@ -41,7 +52,6 @@ def test_first_start_creates_configuration_next_to_executable(tmp_path, monkeypa
     config_path = tmp_path / "config.toml"
     monkeypatch.setattr(gui, "CONFIG_PATH", config_path)
     app = _app_for_detection()
-    app.hrow_var = _Var(1)
 
     app._auto_load_config()
 
@@ -59,13 +69,7 @@ def test_template_column_selection_only_uses_current_excel_headers(tmp_path, mon
     saved = 'template_column = "填料"\nheader_row = 1\n'
     config_path.write_text(saved, encoding="utf-8")
     monkeypatch.setattr(gui, "CONFIG_PATH", config_path)
-    app = _app_for_detection()
-    app.tcol_combo = {}
-    app.excel_var = _Var(str(build_test_xlsx(tmp_path / "data.xlsx")))
-    app.sheet_var = _Var(DATA_SHEET)
-    app.hrow_var = _Var(1)
-    app._rebuild_treeview = lambda **_opts: None
-    app._rebuild_mapping = lambda: None
+    app = _app_for_detection(str(build_test_xlsx(tmp_path / "data.xlsx")), DATA_SHEET)
     app._auto_load_config()
 
     assert app.tcol_var.get() == ""
@@ -96,6 +100,33 @@ def test_template_column_selection_only_uses_current_excel_headers(tmp_path, mon
     app._refresh_all()
     assert app.tcol_combo["values"] == []
     assert app.tcol_var.get() == ""
+
+
+def test_refresh_reads_sheet_once_for_header_detection_and_preview(tmp_path, monkeypatch):
+    excel = build_test_xlsx(tmp_path / "data.xlsx")
+    load = excel_reader.load_workbook
+    workbook = load(excel)
+    workbook[DETAIL_SHEET]["C3"] = None
+    workbook.save(excel)
+    workbook.close()
+
+    reads = []
+
+    def counted_load(path, **kwargs):
+        reads.append(path)
+        return load(path, **kwargs)
+
+    monkeypatch.setattr(excel_reader, "load_workbook", counted_load)
+    app = _app_for_detection(str(excel), DETAIL_SHEET)
+    app._template_metadata_for = lambda _path: gui.TemplateMetadata(("Ni-NTA", "GST"), ("日期",))
+
+    app._refresh_all()
+
+    assert reads == [excel]
+    assert app._header_row == app.hrow_var.get() == 2
+    assert app._headers == list(DETAIL_HEADERS)
+    assert app._rows == [[*DETAIL_ROWS[0][:2], ""], list(DETAIL_ROWS[1])]
+    assert app.tcol_var.get() == "填料"
 
 
 def test_auto_detect_recomputes_when_data_context_changes(monkeypatch):
